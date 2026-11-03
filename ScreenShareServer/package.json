@@ -1,0 +1,13 @@
+{
+  "name": "productivity-town-screen-share",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Serves the PC screen-share sender page and relays WebRTC signaling to the Quest app.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

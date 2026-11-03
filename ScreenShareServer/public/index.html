@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Productivity Town — Share Screen</title>
+<style>
+  body { margin:0; background:#14161a; color:#e8ecf1; font:15px/1.5 system-ui,sans-serif; display:flex; justify-content:center; }
+  main { width:min(720px,100% - 40px); padding:40px 0; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p { color:#9aa4b0; margin:0 0 20px; }
+  button { background:#5ee7ff; color:#0b1a22; border:0; border-radius:8px; padding:10px 18px; font-size:15px; font-weight:600; cursor:pointer; }
+  button.secondary { background:#2a2f37; color:#e8ecf1; }
+  button:disabled { opacity:.4; cursor:default; }
+  .row { display:flex; gap:10px; margin-bottom:18px; }
+  #status { font-family:ui-monospace,Consolas,monospace; font-size:13px; background:#1b1e23; border:1px solid #2a2f37; border-radius:8px; padding:10px 12px; white-space:pre-line; }
+  video { width:100%; margin-top:18px; border-radius:8px; background:#000; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Share your screen with Productivity Town</h1>
+  <p>Keep this tab open while you work. The Quest app connects automatically when it starts.</p>
+  <div class="row">
+    <button id="start">Share screen</button>
+    <button id="stop" class="secondary" disabled>Stop</button>
+  </div>
+  <div id="status">Connecting to server…</div>
+  <video id="preview" autoplay muted playsinline hidden></video>
+</main>
+<script>
+const MAX_BITRATE = 8_000_000; // bits/s; plenty for sharp 1080p text on local Wi-Fi
+const MAX_FPS = 30;
+
+const statusEl = document.getElementById("status");
+const startBtn = document.getElementById("start");
+const stopBtn = document.getElementById("stop");
+const preview = document.getElementById("preview");
+
+let ws, pc, stream;
+let receiverPresent = false;
+
+function setStatus(text) { statusEl.textContent = text; }
+function describe() {
+  setStatus([
+    `Server:  ${ws && ws.readyState === WebSocket.OPEN ? "connected" : "disconnected"}`,
+    `Quest:   ${receiverPresent ? "connected" : "waiting for app…"}`,
+    `Sharing: ${stream ? "yes" : "no"}`,
+    `Stream:  ${pc ? pc.connectionState : "-"}`,
+  ].join("\n"));
+}
+
+function connectSignaling() {
+  ws = new WebSocket(`ws://${location.host}`);
+  ws.onopen = () => { ws.send(JSON.stringify({ type: "hello", role: "sender" })); describe(); };
+  ws.onclose = () => { receiverPresent = false; describe(); setTimeout(connectSignaling, 2000); };
+  ws.onmessage = async (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === "peer-joined" && msg.role === "receiver") {
+      receiverPresent = true;
+      if (stream) await startCall();
+    } else if (msg.type === "peer-left" && msg.role === "receiver") {
+      receiverPresent = false;
+      closeCall();
+    } else if (msg.type === "answer" && pc) {
+      await pc.setRemoteDescription({ type: "answer", sdp: msg.sdp });
+    } else if (msg.type === "candidate" && pc && msg.candidate) {
+      await pc.addIceCandidate({ candidate: msg.candidate, sdpMid: msg.sdpMid, sdpMLineIndex: msg.sdpMLineIndex });
+    }
+    describe();
+  };
+}
+
+function closeCall() {
+  if (pc) { pc.close(); pc = null; }
+}
+
+async function startCall() {
+  closeCall();
+  // LAN only: host candidates are enough, no STUN/TURN needed.
+  pc = new RTCPeerConnection({ iceServers: [] });
+  pc.onconnectionstatechange = describe;
+  pc.onicecandidate = (e) => {
+    if (e.candidate) ws.send(JSON.stringify({
+      type: "candidate", candidate: e.candidate.candidate,
+      sdpMid: e.candidate.sdpMid, sdpMLineIndex: e.candidate.sdpMLineIndex,
+    }));
+  };
+
+  const track = stream.getVideoTracks()[0];
+  const transceiver = pc.addTransceiver(track, { direction: "sendonly", streams: [stream] });
+
+  // Prefer H.264: the Quest decodes it in hardware.
+  const caps = RTCRtpSender.getCapabilities("video");
+  if (caps && transceiver.setCodecPreferences) {
+    const h264 = caps.codecs.filter((c) => c.mimeType === "video/H264");
+    const rest = caps.codecs.filter((c) => c.mimeType !== "video/H264");
+    transceiver.setCodecPreferences([...h264, ...rest]);
+  }
+
+  const params = transceiver.sender.getParameters();
+  params.encodings = [{ maxBitrate: MAX_BITRATE, maxFramerate: MAX_FPS }];
+  params.degradationPreference = "maintain-resolution"; // keep text sharp; drop frames instead
+  await transceiver.sender.setParameters(params).catch(() => {});
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
+  describe();
+}
+
+startBtn.onclick = async () => {
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: MAX_FPS, width: { max: 1920 }, height: { max: 1080 } },
+      audio: false,
+    });
+  } catch {
+    return; // user cancelled the picker
+  }
+  const track = stream.getVideoTracks()[0];
+  track.contentHint = "detail"; // optimise for text, not motion
+  track.onended = stopSharing;  // user clicked the browser's "Stop sharing"
+  preview.srcObject = stream;
+  preview.hidden = false;
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  if (receiverPresent) await startCall();
+  describe();
+};
+
+function stopSharing() {
+  closeCall();
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  stream = null;
+  preview.hidden = true;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  describe();
+}
+stopBtn.onclick = stopSharing;
+
+connectSignaling();
+</script>
+</body>
+</html>
