@@ -136,6 +136,9 @@ public class OnboardingManager : MonoBehaviour
         // so the assigned material is also tinted (instanced via .material) to ringColor.
         ringLine.material = ringMaterial != null ? ringMaterial : new Material(Shader.Find("Sprites/Default"));
         ringLine.material.color = ringColor;
+        // Both ring and hologram are transparent without depth writes, so Unity orders them by object center,
+        // and the ring's center (the user's head) always wins. The town sits inside the ring, so draw the ring first.
+        ringLine.material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent - 10;
         ringLine.startColor = ringLine.endColor = ringColor;
         ringLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         ringLine.receiveShadows = false;
