@@ -1,15 +1,18 @@
 using System.Collections;
-using Oculus.Interaction.Input;
+using Oculus.Interaction;
 using UnityEngine;
 
 // Test setup for the dome boundary flow:
-// spawns a mini town model in front of the user and a glowing ring centered on the user, slightly below the head.
-// Pinch the town with both hands and pull apart / push together to scale it; the ring scales with it.
+// places the mini town in front of the user and a glowing ring centered on the user, slightly below the head.
+// The town is grabbed and two-hand scaled by its Interaction SDK Grabbable; the ring follows the town's scale.
 public class OnboardingManager : MonoBehaviour
 {
     [Header("Mini Town")]
-    [Tooltip("Optional. If empty, a placeholder town (disc + tiny houses) is generated.")]
+    [Tooltip("A town already in the scene (e.g. with Grabbable + transformer). Takes priority over the prefab.")]
+    [SerializeField] private Transform existingTown;
+    [Tooltip("Spawned if no existing town is set. If both are empty, a placeholder town (disc + tiny houses) is generated.")]
     [SerializeField] private GameObject miniTownPrefab;
+    [SerializeField] private bool placeTownInFrontOfUser = true;
     [SerializeField] private float townDistanceFromHead = 0.45f;
     [SerializeField] private float townHeightBelowHead = 0.25f;
     [SerializeField] private float townDiameter = 0.25f;
@@ -17,6 +20,7 @@ public class OnboardingManager : MonoBehaviour
     [SerializeField] private float townBobAmplitude = 0.01f;
 
     [Header("Boundary Ring")]
+    [Tooltip("Ring radius at the town's starting scale; it grows and shrinks in proportion to the town.")]
     [SerializeField] private float ringRadius = 0.8f;
     [SerializeField] private float ringHeightBelowHead = 0.3f;
     [SerializeField] private float ringWidth = 0.01f;
@@ -24,14 +28,8 @@ public class OnboardingManager : MonoBehaviour
     [SerializeField] private Color ringColor = new Color(0.37f, 0.9f, 1f, 1f);
     [Tooltip("Optional. If empty, Sprites/Default is used.")]
     [SerializeField] private Material ringMaterial;
-
-    [Header("Two-Hand Stretch")]
-    [Tooltip("How far outside the town's edge a pinch still counts as grabbing it (meters).")]
-    [SerializeField] private float grabMargin = 0.08f;
-    [SerializeField] private float minRingRadius = 0.5f;
-    [SerializeField] private float maxRingRadius = 2.5f;
-    [Tooltip("Ring line width multiplier while stretching, as feedback.")]
-    [SerializeField] private float stretchRingWidthBoost = 2f;
+    [Tooltip("Ring line width multiplier while the town is held, as feedback.")]
+    [SerializeField] private float grabbedRingWidthBoost = 2f;
 
     /// <summary>Current boundary radius in meters (the dome is built from this).</summary>
     public float RingRadius { get; private set; }
@@ -39,17 +37,11 @@ public class OnboardingManager : MonoBehaviour
     private Transform head;
     private GameObject setupRoot;
     private Transform town;
+    private Grabbable townGrabbable;
     private Vector3 townBasePosition;
-    private Vector3 townSpawnScale;
-    private float townSpawnRadius;
+    private float townSpawnScale;
     private LineRenderer ringLine;
-
-    private IHand leftHand;
-    private IHand rightHand;
-    private float nextHandSearchTime;
-    private bool stretching;
-    private float stretchStartDistance;
-    private float stretchStartRingRadius;
+    private bool wasGrabbed;
 
     private IEnumerator Start()
     {
@@ -79,13 +71,36 @@ public class OnboardingManager : MonoBehaviour
 
     private void Update()
     {
-        UpdateStretch();
+        if (town == null)
+            return;
 
-        if (town != null)
+        // SelectingPoints is created in the Grabbable's Awake, so it's null if that hasn't run (e.g. inactive or failed).
+        bool grabbed = townGrabbable != null && townGrabbable.isActiveAndEnabled
+                       && townGrabbable.SelectingPoints != null && townGrabbable.SelectingPoints.Count > 0;
+
+        // While held, the Grabbable's transformer owns the town's transform; idle motion resumes from where it was let go.
+        if (!grabbed)
         {
+            if (wasGrabbed)
+                townBasePosition = town.position;
             town.Rotate(0f, townSpinSpeed * Time.deltaTime, 0f, Space.World);
             town.position = townBasePosition + Vector3.up * Mathf.Sin(Time.time * 1.5f) * townBobAmplitude;
         }
+
+        if (grabbed != wasGrabbed && ringLine != null)
+            ringLine.widthMultiplier = ringWidth * (grabbed ? grabbedRingWidthBoost : 1f);
+        wasGrabbed = grabbed;
+    }
+
+    // After the transformer has updated the town this frame.
+    private void LateUpdate()
+    {
+        if (town == null || ringLine == null || townSpawnScale <= 0f)
+            return;
+
+        float radius = ringRadius * town.localScale.x / townSpawnScale;
+        if (!Mathf.Approximately(radius, RingRadius))
+            SetRingRadius(radius);
     }
 
     [ContextMenu("Respawn")]
@@ -117,7 +132,10 @@ public class OnboardingManager : MonoBehaviour
         ringLine.loop = true;
         ringLine.positionCount = ringSegments;
         ringLine.widthMultiplier = ringWidth;
+        // Sprites/Default is unlit and uses the line's vertex color. URP materials ignore vertex color,
+        // so the assigned material is also tinted (instanced via .material) to ringColor.
         ringLine.material = ringMaterial != null ? ringMaterial : new Material(Shader.Find("Sprites/Default"));
+        ringLine.material.color = ringColor;
         ringLine.startColor = ringLine.endColor = ringColor;
         ringLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         ringLine.receiveShadows = false;
@@ -125,7 +143,6 @@ public class OnboardingManager : MonoBehaviour
         SetRingRadius(ringRadius);
     }
 
-    // Resizes the ring and scales the town by the same factor relative to their spawn size.
     private void SetRingRadius(float radius)
     {
         RingRadius = radius;
@@ -134,116 +151,42 @@ public class OnboardingManager : MonoBehaviour
             float a = i * Mathf.PI * 2f / ringSegments;
             ringLine.SetPosition(i, new Vector3(Mathf.Cos(a) * radius, 0f, Mathf.Sin(a) * radius));
         }
-
-        if (town != null)
-            town.localScale = townSpawnScale * (radius / ringRadius);
-    }
-
-    // ---------- Two-hand stretch ----------
-
-    private void UpdateStretch()
-    {
-        if (town == null || ringLine == null)
-            return;
-
-        if ((leftHand == null || rightHand == null) && Time.time >= nextHandSearchTime)
-        {
-            FindHands();
-            nextHandSearchTime = Time.time + 1f;
-        }
-
-        bool leftPinch = TryGetPinchPoint(leftHand, out var leftPoint);
-        bool rightPinch = TryGetPinchPoint(rightHand, out var rightPoint);
-
-        if (!stretching)
-        {
-            if (leftPinch && rightPinch && IsNearTown(leftPoint) && IsNearTown(rightPoint))
-            {
-                stretching = true;
-                stretchStartDistance = Mathf.Max(Vector3.Distance(leftPoint, rightPoint), 0.01f);
-                stretchStartRingRadius = RingRadius;
-                ringLine.widthMultiplier = ringWidth * stretchRingWidthBoost;
-            }
-            return;
-        }
-
-        if (!leftPinch || !rightPinch)
-        {
-            stretching = false;
-            ringLine.widthMultiplier = ringWidth;
-            return;
-        }
-
-        float factor = Vector3.Distance(leftPoint, rightPoint) / stretchStartDistance;
-        SetRingRadius(Mathf.Clamp(stretchStartRingRadius * factor, minRingRadius, maxRingRadius));
-    }
-
-    // Picks the raw tracked hands from the interaction rig ("OVRHands"), avoiding the SyntheticHandData
-    // copies, whose fingers can be modified by other interactions. Only connected hands are taken.
-    private void FindHands()
-    {
-        foreach (var hand in FindObjectsByType<Hand>(FindObjectsSortMode.None))
-        {
-            if (!hand.IsConnected || hand.name.Contains("Synthetic"))
-                continue;
-            bool preferred = hand.name.StartsWith("OVRHands");
-            string side = hand.Handedness.ToString();
-            if (side == "Left" && (leftHand == null || preferred))
-                leftHand = hand;
-            else if (side == "Right" && (rightHand == null || preferred))
-                rightHand = hand;
-        }
-    }
-
-    // Midpoint between thumb and index tips while the index finger is pinching.
-    private static bool TryGetPinchPoint(IHand hand, out Vector3 point)
-    {
-        point = default;
-        if (hand == null || !hand.IsTrackedDataValid || !hand.GetIndexFingerIsPinching())
-            return false;
-        if (!hand.GetJointPose(HandJointId.HandIndexTip, out var index) ||
-            !hand.GetJointPose(HandJointId.HandThumbTip, out var thumb))
-            return false;
-        point = (index.position + thumb.position) * 0.5f;
-        return true;
-    }
-
-    private bool IsNearTown(Vector3 point)
-    {
-        float townRadius = townSpawnRadius * (RingRadius / ringRadius);
-        return Vector3.Distance(point, town.position) <= townRadius + grabMargin;
     }
 
     private void SpawnTown(Vector3 forward)
     {
-        townBasePosition = head.position + forward * townDistanceFromHead + Vector3.down * townHeightBelowHead;
-
-        town = miniTownPrefab != null
-            ? Instantiate(miniTownPrefab).transform
-            : BuildPlaceholderTown();
-
-        town.name = "MiniTown";
-        town.SetParent(setupRoot.transform, true);
-        town.SetPositionAndRotation(townBasePosition, Quaternion.LookRotation(-forward, Vector3.up));
-        townSpawnScale = town.localScale;
-        townSpawnRadius = CalculateHorizontalRadius(town);
-        stretching = false;
-    }
-
-    // Approximate radius of the town footprint around its pivot.
-    private static float CalculateHorizontalRadius(Transform root)
-    {
-        var center = new Vector2(root.position.x, root.position.z);
-        float radius = 0f;
-        foreach (var r in root.GetComponentsInChildren<Renderer>())
+        if (existingTown != null)
         {
-            var b = r.bounds;
-            radius = Mathf.Max(radius,
-                Vector2.Distance(new Vector2(b.min.x, b.min.z), center),
-                Vector2.Distance(new Vector2(b.max.x, b.max.z), center));
+            // Reuse the scene town (keeps its Grabbable setup); don't parent it, so respawning never destroys it.
+            // It may be left inactive in the scene so it only appears now; activating it also runs the Grabbable's Awake.
+            town = existingTown;
+            town.gameObject.SetActive(true);
         }
-        // Bounds corners overestimate a round town.
-        return radius > 0f ? radius * 0.75f : 0.125f;
+        else
+        {
+            if (town != null && town.IsChildOf(setupRoot.transform))
+                Destroy(town.gameObject);
+            town = miniTownPrefab != null
+                ? Instantiate(miniTownPrefab).transform
+                : BuildPlaceholderTown();
+            town.name = "MiniTown";
+            town.SetParent(setupRoot.transform, true);
+        }
+
+        if (placeTownInFrontOfUser)
+        {
+            townBasePosition = head.position + forward * townDistanceFromHead + Vector3.down * townHeightBelowHead;
+            town.SetPositionAndRotation(townBasePosition, Quaternion.LookRotation(-forward, Vector3.up));
+        }
+        else
+        {
+            townBasePosition = town.position;
+        }
+
+        townGrabbable = town.GetComponentInChildren<Grabbable>();
+        // The ring's starting radius corresponds to the town's scale right now.
+        townSpawnScale = town.localScale.x;
+        wasGrabbed = false;
     }
 
     // Disc base with a ring of tiny houses and trees, sized to townDiameter.
