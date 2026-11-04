@@ -1,8 +1,10 @@
 using System.Collections;
+using Oculus.Interaction.Input;
 using UnityEngine;
 
 // Test setup for the dome boundary flow:
 // spawns a mini town model in front of the user and a glowing ring centered on the user, slightly below the head.
+// Pinch the town with both hands and pull apart / push together to scale it; the ring scales with it.
 public class OnboardingManager : MonoBehaviour
 {
     [Header("Mini Town")]
@@ -23,10 +25,31 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Optional. If empty, Sprites/Default is used.")]
     [SerializeField] private Material ringMaterial;
 
+    [Header("Two-Hand Stretch")]
+    [Tooltip("How far outside the town's edge a pinch still counts as grabbing it (meters).")]
+    [SerializeField] private float grabMargin = 0.08f;
+    [SerializeField] private float minRingRadius = 0.5f;
+    [SerializeField] private float maxRingRadius = 2.5f;
+    [Tooltip("Ring line width multiplier while stretching, as feedback.")]
+    [SerializeField] private float stretchRingWidthBoost = 2f;
+
+    /// <summary>Current boundary radius in meters (the dome is built from this).</summary>
+    public float RingRadius { get; private set; }
+
     private Transform head;
     private GameObject setupRoot;
     private Transform town;
     private Vector3 townBasePosition;
+    private Vector3 townSpawnScale;
+    private float townSpawnRadius;
+    private LineRenderer ringLine;
+
+    private IHand leftHand;
+    private IHand rightHand;
+    private float nextHandSearchTime;
+    private bool stretching;
+    private float stretchStartDistance;
+    private float stretchStartRingRadius;
 
     private IEnumerator Start()
     {
@@ -56,6 +79,8 @@ public class OnboardingManager : MonoBehaviour
 
     private void Update()
     {
+        UpdateStretch();
+
         if (town != null)
         {
             town.Rotate(0f, townSpinSpeed * Time.deltaTime, 0f, Space.World);
@@ -87,21 +112,106 @@ public class OnboardingManager : MonoBehaviour
         ring.transform.SetParent(setupRoot.transform, false);
         ring.transform.position = new Vector3(head.position.x, head.position.y - ringHeightBelowHead, head.position.z);
 
-        var line = ring.AddComponent<LineRenderer>();
-        line.useWorldSpace = false;
-        line.loop = true;
-        line.positionCount = ringSegments;
-        line.widthMultiplier = ringWidth;
-        line.material = ringMaterial != null ? ringMaterial : new Material(Shader.Find("Sprites/Default"));
-        line.startColor = line.endColor = ringColor;
-        line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        line.receiveShadows = false;
+        ringLine = ring.AddComponent<LineRenderer>();
+        ringLine.useWorldSpace = false;
+        ringLine.loop = true;
+        ringLine.positionCount = ringSegments;
+        ringLine.widthMultiplier = ringWidth;
+        ringLine.material = ringMaterial != null ? ringMaterial : new Material(Shader.Find("Sprites/Default"));
+        ringLine.startColor = ringLine.endColor = ringColor;
+        ringLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        ringLine.receiveShadows = false;
 
+        SetRingRadius(ringRadius);
+    }
+
+    // Resizes the ring and scales the town by the same factor relative to their spawn size.
+    private void SetRingRadius(float radius)
+    {
+        RingRadius = radius;
         for (int i = 0; i < ringSegments; i++)
         {
             float a = i * Mathf.PI * 2f / ringSegments;
-            line.SetPosition(i, new Vector3(Mathf.Cos(a) * ringRadius, 0f, Mathf.Sin(a) * ringRadius));
+            ringLine.SetPosition(i, new Vector3(Mathf.Cos(a) * radius, 0f, Mathf.Sin(a) * radius));
         }
+
+        if (town != null)
+            town.localScale = townSpawnScale * (radius / ringRadius);
+    }
+
+    // ---------- Two-hand stretch ----------
+
+    private void UpdateStretch()
+    {
+        if (town == null || ringLine == null)
+            return;
+
+        if ((leftHand == null || rightHand == null) && Time.time >= nextHandSearchTime)
+        {
+            FindHands();
+            nextHandSearchTime = Time.time + 1f;
+        }
+
+        bool leftPinch = TryGetPinchPoint(leftHand, out var leftPoint);
+        bool rightPinch = TryGetPinchPoint(rightHand, out var rightPoint);
+
+        if (!stretching)
+        {
+            if (leftPinch && rightPinch && IsNearTown(leftPoint) && IsNearTown(rightPoint))
+            {
+                stretching = true;
+                stretchStartDistance = Mathf.Max(Vector3.Distance(leftPoint, rightPoint), 0.01f);
+                stretchStartRingRadius = RingRadius;
+                ringLine.widthMultiplier = ringWidth * stretchRingWidthBoost;
+            }
+            return;
+        }
+
+        if (!leftPinch || !rightPinch)
+        {
+            stretching = false;
+            ringLine.widthMultiplier = ringWidth;
+            return;
+        }
+
+        float factor = Vector3.Distance(leftPoint, rightPoint) / stretchStartDistance;
+        SetRingRadius(Mathf.Clamp(stretchStartRingRadius * factor, minRingRadius, maxRingRadius));
+    }
+
+    // Picks the raw tracked hands from the interaction rig ("OVRHands"), avoiding the SyntheticHandData
+    // copies, whose fingers can be modified by other interactions. Only connected hands are taken.
+    private void FindHands()
+    {
+        foreach (var hand in FindObjectsByType<Hand>(FindObjectsSortMode.None))
+        {
+            if (!hand.IsConnected || hand.name.Contains("Synthetic"))
+                continue;
+            bool preferred = hand.name.StartsWith("OVRHands");
+            string side = hand.Handedness.ToString();
+            if (side == "Left" && (leftHand == null || preferred))
+                leftHand = hand;
+            else if (side == "Right" && (rightHand == null || preferred))
+                rightHand = hand;
+        }
+    }
+
+    // Midpoint between thumb and index tips while the index finger is pinching.
+    private static bool TryGetPinchPoint(IHand hand, out Vector3 point)
+    {
+        point = default;
+        if (hand == null || !hand.IsTrackedDataValid || !hand.GetIndexFingerIsPinching())
+            return false;
+        if (!hand.GetJointPose(HandJointId.HandIndexTip, out var index) ||
+            !hand.GetJointPose(HandJointId.HandThumbTip, out var thumb))
+            return false;
+        point = (index.position + thumb.position) * 0.5f;
+        return true;
+    }
+
+    private bool IsNearTown(Vector3 point)
+    {
+        float townRadius = townSpawnRadius * (RingRadius / ringRadius);
+        return Vector3.Distance(point, town.position) <= townRadius + grabMargin;
     }
 
     private void SpawnTown(Vector3 forward)
@@ -115,6 +225,25 @@ public class OnboardingManager : MonoBehaviour
         town.name = "MiniTown";
         town.SetParent(setupRoot.transform, true);
         town.SetPositionAndRotation(townBasePosition, Quaternion.LookRotation(-forward, Vector3.up));
+        townSpawnScale = town.localScale;
+        townSpawnRadius = CalculateHorizontalRadius(town);
+        stretching = false;
+    }
+
+    // Approximate radius of the town footprint around its pivot.
+    private static float CalculateHorizontalRadius(Transform root)
+    {
+        var center = new Vector2(root.position.x, root.position.z);
+        float radius = 0f;
+        foreach (var r in root.GetComponentsInChildren<Renderer>())
+        {
+            var b = r.bounds;
+            radius = Mathf.Max(radius,
+                Vector2.Distance(new Vector2(b.min.x, b.min.z), center),
+                Vector2.Distance(new Vector2(b.max.x, b.max.z), center));
+        }
+        // Bounds corners overestimate a round town.
+        return radius > 0f ? radius * 0.75f : 0.125f;
     }
 
     // Disc base with a ring of tiny houses and trees, sized to townDiameter.
