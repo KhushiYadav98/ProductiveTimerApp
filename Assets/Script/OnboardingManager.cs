@@ -31,22 +31,52 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Ring line width multiplier while the town is held, as feedback.")]
     [SerializeField] private float grabbedRingWidthBoost = 2f;
 
+    [Header("Dome")]
+    [Tooltip("Dome model, left inactive in the scene; shown when the bell is touched.")]
+    [SerializeField] private Transform dome;
+    [Tooltip("How far the dome's wall sits outside the ring, in meters.")]
+    [SerializeField] private float domePadding = 1f;
+
+    [Header("Passthrough Hole")]
+    [Tooltip("Show the real room inside the ring by punching through the virtual floor/sky there.")]
+    [SerializeField] private bool passthroughHole = true;
+    [Tooltip("Material using ProductivityTown/Passthrough Hole (a referenced material keeps the shader in builds).")]
+    [SerializeField] private Material passthroughHoleMaterial;
+    [Tooltip("Height above the floor of the punch disc; about desk height keeps the whole real desk visible. " +
+             "Virtual things below it, inside the ring, are hidden.")]
+    [SerializeField] private float passthroughHoleHeight = 0.7f;
+    [Tooltip("Width of the soft edge between the real room and the virtual floor, in meters.")]
+    [SerializeField] private float passthroughHoleFeather = 0.3f;
+
     /// <summary>Current boundary radius in meters (the dome is built from this).</summary>
     public float RingRadius { get; private set; }
 
+    public bool IsTownGrabbed => wasGrabbed;
+    public bool IsDomeActive => dome != null && dome.gameObject.activeSelf;
+
+    private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
+    private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
+    private static readonly int HoleFeatherId = Shader.PropertyToID("_HoleFeather");
+
     private Transform head;
+    private OVRCameraRig rig;
+    // Dome model measurements per unit of localScale, taken when it's first shown.
+    private float domeRadiusPerScale;
+    private Vector3 domeCenterOffsetPerScale;
+    private float domeBottomOffsetPerScale;
     private GameObject setupRoot;
     private Transform town;
     private Grabbable townGrabbable;
     private Vector3 townBasePosition;
     private float townSpawnScale;
     private LineRenderer ringLine;
+    private Transform holeDisc;
     private bool wasGrabbed;
 
     private IEnumerator Start()
     {
-        var rig = FindFirstObjectByType<OVRCameraRig>();
-        head = rig != null ? rig.centerEyeAnchor : Camera.main.transform;
+        rig = FindFirstObjectByType<OVRCameraRig>();
+        head =rig != null ? rig.centerEyeAnchor : Camera.main.transform;
 
         // Wait for a valid head pose (it reads as zero for the first frames on device).
         float timeout = 3f;
@@ -101,6 +131,50 @@ public class OnboardingManager : MonoBehaviour
         float radius = ringRadius * town.localScale.x / townSpawnScale;
         if (!Mathf.Approximately(radius, RingRadius))
             SetRingRadius(radius);
+
+        if (holeDisc != null)
+            PlaceHoleDisc();
+
+        if (dome != null && dome.gameObject.activeSelf && domeRadiusPerScale > 0f)
+            PlaceDome();
+    }
+
+    /// <summary>Shows the dome on the floor around the user, sized from the ring. Called by the bell.</summary>
+    public void ActivateDome()
+    {
+        if (dome == null || ringLine == null || dome.gameObject.activeSelf)
+            return;
+
+        dome.gameObject.SetActive(true);
+
+        // Renderer bounds are only valid once active. Measure the model so any pivot/size works.
+        var renderers = dome.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+            return;
+        Bounds b = renderers[0].bounds;
+        foreach (var r in renderers)
+            b.Encapsulate(r.bounds);
+
+        float scale = dome.localScale.x;
+        domeRadiusPerScale = Mathf.Max(b.extents.x, b.extents.z) / scale;
+        domeCenterOffsetPerScale = (b.center - dome.position) / scale;
+        domeBottomOffsetPerScale = (dome.position.y - b.min.y) / scale;
+
+        PlaceDome();
+    }
+
+    private void PlaceDome()
+    {
+        float scale = (RingRadius + domePadding) / domeRadiusPerScale;
+        dome.localScale = Vector3.one * scale;
+
+        // Floor-level tracking origin: the tracking space's y is the real floor.
+        float floorY = rig != null ? rig.trackingSpace.position.y : 0f;
+        Vector3 center = ringLine.transform.position;
+        dome.position = new Vector3(
+            center.x - domeCenterOffsetPerScale.x * scale,
+            floorY + domeBottomOffsetPerScale * scale,
+            center.z - domeCenterOffsetPerScale.z * scale);
     }
 
     [ContextMenu("Respawn")]
@@ -118,7 +192,47 @@ public class OnboardingManager : MonoBehaviour
         forward.Normalize();
 
         SpawnRing();
+        SpawnHoleDisc();
         SpawnTown(forward);
+    }
+
+    // Flat quad on the floor around the user with the "Passthrough Hole" shader; the shader cuts the soft circle.
+    private void SpawnHoleDisc()
+    {
+        if (!passthroughHole)
+            return;
+        if (passthroughHoleMaterial == null)
+        {
+            Debug.LogWarning("[Onboarding] Passthrough Hole Material is not assigned.");
+            return;
+        }
+
+        var disc = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        disc.name = "PassthroughHole";
+        Destroy(disc.GetComponent<Collider>());
+        disc.transform.SetParent(setupRoot.transform, false);
+        disc.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+        var renderer = disc.GetComponent<MeshRenderer>();
+        renderer.material = passthroughHoleMaterial;
+        renderer.material.SetFloat(HoleFeatherId, passthroughHoleFeather);
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        holeDisc = disc.transform;
+        PlaceHoleDisc();
+    }
+
+    private void PlaceHoleDisc()
+    {
+        Vector3 center = ringLine.transform.position;
+        // Floor-level tracking origin: the tracking space's y is the real floor.
+        float floorY = rig != null ? rig.trackingSpace.position.y : 0f;
+        holeDisc.position = new Vector3(center.x, floorY + passthroughHoleHeight, center.z);
+        holeDisc.localScale = Vector3.one * 2f * (RingRadius + passthroughHoleFeather + 0.05f);
+
+        Shader.SetGlobalVector(PassthroughHoleCenterId, center);
+        Shader.SetGlobalFloat(PassthroughHoleRadiusId, RingRadius);
     }
 
     private void SpawnRing()
