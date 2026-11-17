@@ -22,7 +22,6 @@ public class OnboardingManager : MonoBehaviour
     [Header("Boundary Ring")]
     [Tooltip("Ring radius at the town's starting scale; it grows and shrinks in proportion to the town.")]
     [SerializeField] private float ringRadius = 0.8f;
-    [SerializeField] private float ringHeightBelowHead = 0.3f;
     [SerializeField] private float ringWidth = 0.01f;
     [SerializeField] private int ringSegments = 96;
     [SerializeField] private Color ringColor = new Color(0.37f, 0.9f, 1f, 1f);
@@ -31,21 +30,35 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Ring line width multiplier while the town is held, as feedback.")]
     [SerializeField] private float grabbedRingWidthBoost = 2f;
 
+    [Header("Productivity Town (life-size)")]
+    [Tooltip("Life-size town (e.g. ProductivityTown_Unity), shown around the user when the bell is touched. " +
+             "Its pivot should be at the town's center, on its ground.")]
+    [SerializeField] private Transform bigTown;
+    [Tooltip("Part of the big town whose edge is matched to the ring (e.g. Plaza_OuterCurb, so the user stands in the plaza). " +
+             "If empty, the whole town's edge is matched to the ring.")]
+    [SerializeField] private Transform bigTownFitTo;
+    [Tooltip("Hide the mini town and the ring once the big town is shown.")]
+    [SerializeField] private bool hideMiniTownOnConfirm = true;
+    [Tooltip("Sky sphere around the town (e.g. Env_Sphere). Drawn double-sided so it's visible from inside.")]
+    [SerializeField] private Renderer skySphere;
+
     [Header("Dome")]
-    [Tooltip("Dome model, left inactive in the scene; shown when the bell is touched.")]
+    [Tooltip("Optional dome model, left inactive in the scene; shown when the bell is touched.")]
     [SerializeField] private Transform dome;
     [Tooltip("How far the dome's wall sits outside the ring, in meters.")]
     [SerializeField] private float domePadding = 1f;
 
     [Header("Passthrough Hole")]
-    [Tooltip("Show the real room inside the ring by punching through the virtual floor/sky there.")]
+    [Tooltip("After the bell: show the real room inside the ring (floor to ceiling) by punching through the town/sky there.")]
     [SerializeField] private bool passthroughHole = true;
     [Tooltip("Material using ProductivityTown/Passthrough Hole (a referenced material keeps the shader in builds).")]
     [SerializeField] private Material passthroughHoleMaterial;
-    [Tooltip("Height above the floor of the punch disc; about desk height keeps the whole real desk visible. " +
-             "Virtual things below it, inside the ring, are hidden.")]
-    [SerializeField] private float passthroughHoleHeight = 0.7f;
-    [Tooltip("Width of the soft edge between the real room and the virtual floor, in meters.")]
+    [Tooltip("Height above the ring (where the town's ground is placed) of the floor punch disc. " +
+             "Keep it just above the town's ground so the cut ends at the ring.")]
+    [SerializeField] private float passthroughHoleHeight = 0.05f;
+    [Tooltip("Height above the floor of the ceiling punch disc; the sky above it, inside the ring, shows the real room.")]
+    [SerializeField] private float passthroughCeilingHeight = 2.5f;
+    [Tooltip("Width of the soft edge between the real room and the town, in meters (centered on the ring).")]
     [SerializeField] private float passthroughHoleFeather = 0.3f;
 
     /// <summary>Current boundary radius in meters (the dome is built from this).</summary>
@@ -53,13 +66,18 @@ public class OnboardingManager : MonoBehaviour
 
     public bool IsTownGrabbed => wasGrabbed;
     public bool IsDomeActive => dome != null && dome.gameObject.activeSelf;
+    /// <summary>True once the bell has confirmed the size (the big town and/or dome is shown).</summary>
+    public bool IsConfirmed { get; private set; }
 
     private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
     private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
     private static readonly int HoleFeatherId = Shader.PropertyToID("_HoleFeather");
+    private static readonly int HoleExtraId = Shader.PropertyToID("_HoleExtra");
+    private static readonly int CullId = Shader.PropertyToID("_Cull");
 
     private Transform head;
     private OVRCameraRig rig;
+    private Vector3 bigTownStartScale;
     // Dome model measurements per unit of localScale, taken when it's first shown.
     private float domeRadiusPerScale;
     private Vector3 domeCenterOffsetPerScale;
@@ -71,12 +89,20 @@ public class OnboardingManager : MonoBehaviour
     private float townSpawnScale;
     private LineRenderer ringLine;
     private Transform holeDisc;
+    private Transform holeCeiling;
     private bool wasGrabbed;
 
     private IEnumerator Start()
     {
         rig = FindFirstObjectByType<OVRCameraRig>();
-        head =rig != null ? rig.centerEyeAnchor : Camera.main.transform;
+        head = rig != null ? rig.centerEyeAnchor : Camera.main.transform;
+
+        // The life-size town stays hidden until the bell confirms its size.
+        if (bigTown != null)
+        {
+            bigTownStartScale = bigTown.localScale;
+            bigTown.gameObject.SetActive(false);
+        }
 
         // Wait for a valid head pose (it reads as zero for the first frames on device).
         float timeout = 3f;
@@ -132,6 +158,16 @@ public class OnboardingManager : MonoBehaviour
         if (!Mathf.Approximately(radius, RingRadius))
             SetRingRadius(radius);
 
+        // Until the bell, the ring stays centered on the user but follows the mini town's height (its base),
+        // so the big town is later placed at the height the user chose. The idle bob is ignored.
+        if (!IsConfirmed)
+        {
+            float townY = wasGrabbed ? town.position.y : townBasePosition.y;
+            Vector3 p = ringLine.transform.position;
+            if (!Mathf.Approximately(p.y, townY))
+                ringLine.transform.position = new Vector3(p.x, townY, p.z);
+        }
+
         if (holeDisc != null)
             PlaceHoleDisc();
 
@@ -139,7 +175,71 @@ public class OnboardingManager : MonoBehaviour
             PlaceDome();
     }
 
-    /// <summary>Shows the dome on the floor around the user, sized from the ring. Called by the bell.</summary>
+    /// <summary>
+    /// Called by the bell: locks in the ring size, then shows the life-size town (and the dome, if set)
+    /// on the floor, centered on the ring (where the user stands).
+    /// </summary>
+    public void ConfirmBoundary()
+    {
+        if (IsConfirmed || ringLine == null)
+            return;
+        IsConfirmed = true;
+
+        ShowBigTown();
+        ActivateDome();
+        // Before the bell everything is passthrough anyway; now cut the real room back in, inside the ring.
+        SpawnHoleDiscs();
+
+        if (hideMiniTownOnConfirm)
+        {
+            if (town != null)
+                town.gameObject.SetActive(false);
+            ringLine.enabled = false;
+        }
+    }
+
+    private void ShowBigTown()
+    {
+        if (bigTown == null)
+            return;
+
+        bigTown.localScale = bigTownStartScale;
+        bigTown.gameObject.SetActive(true);
+
+        // The town's own preview camera would render over the headset view.
+        foreach (var cam in bigTown.GetComponentsInChildren<Camera>(true))
+            cam.enabled = false;
+
+        // The sky sphere's faces point outward; draw both sides so it's visible from inside.
+        if (skySphere != null && skySphere.material.HasProperty(CullId))
+            skySphere.material.SetFloat(CullId, (float)UnityEngine.Rendering.CullMode.Off);
+
+        // Measure the part that should line up with the ring (renderer bounds are only valid once active).
+        Transform fit = bigTownFitTo != null ? bigTownFitTo : bigTown;
+        var renderers = fit.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+        {
+            Debug.LogWarning("[Onboarding] Big town fit target has no renderers; can't size it to the ring.");
+            return;
+        }
+        Bounds b = renderers[0].bounds;
+        foreach (var r in renderers)
+            b.Encapsulate(r.bounds);
+
+        float fitRadius = Mathf.Max(b.extents.x, b.extents.z);
+        Vector3 centerOffset = b.center - bigTown.position;
+
+        float k = RingRadius / fitRadius;
+        bigTown.localScale = bigTownStartScale * k;
+
+        // Center of the fit target goes to the ring center (the user); the town's ground (its pivot) goes at the ring's height.
+        Vector3 center = ringLine.transform.position;
+        bigTown.position = new Vector3(center.x - centerOffset.x * k, center.y, center.z - centerOffset.z * k);
+
+        Debug.Log($"[Onboarding] Big town shown: ring radius {RingRadius:F2} m, town scale x{k:F3}");
+    }
+
+    /// <summary>Shows the dome on the floor around the user, sized from the ring.</summary>
     public void ActivateDome()
     {
         if (dome == null || ringLine == null || dome.gameObject.activeSelf)
@@ -183,6 +283,16 @@ public class OnboardingManager : MonoBehaviour
         if (setupRoot != null)
             Destroy(setupRoot);
 
+        // Respawning (e.g. recenter) restarts the sizing step.
+        IsConfirmed = false;
+        if (bigTown != null)
+        {
+            bigTown.gameObject.SetActive(false);
+            bigTown.localScale = bigTownStartScale;
+        }
+        if (dome != null)
+            dome.gameObject.SetActive(false);
+
         setupRoot = new GameObject("DomeSetupRoot");
 
         // Yaw-only forward so the town doesn't end up in the floor/ceiling if the user is looking up or down.
@@ -191,13 +301,20 @@ public class OnboardingManager : MonoBehaviour
             forward = Vector3.ProjectOnPlane(head.up, Vector3.up);
         forward.Normalize();
 
+        holeDisc = null;
+        holeCeiling = null;
         SpawnRing();
-        SpawnHoleDisc();
         SpawnTown(forward);
+
+        // The ring starts (and stays, until the bell) at the mini town's base height, centered on the user.
+        Vector3 ringPos = ringLine.transform.position;
+        ringLine.transform.position = new Vector3(ringPos.x, townBasePosition.y, ringPos.z);
     }
 
-    // Flat quad on the floor around the user with the "Passthrough Hole" shader; the shader cuts the soft circle.
-    private void SpawnHoleDisc()
+    // Two flat quads with the "Passthrough Hole" shader, one just above the floor and one at ceiling height.
+    // Each clears whatever virtual content is behind it inside the ring, so the ring becomes a floor-to-ceiling
+    // column of real room; the town and sky beyond the ring are untouched.
+    private void SpawnHoleDiscs()
     {
         if (!passthroughHole)
             return;
@@ -207,8 +324,15 @@ public class OnboardingManager : MonoBehaviour
             return;
         }
 
+        holeDisc = CreateHoleDisc("PassthroughHole_Floor");
+        holeCeiling = CreateHoleDisc("PassthroughHole_Ceiling");
+        PlaceHoleDisc();
+    }
+
+    private Transform CreateHoleDisc(string name)
+    {
         var disc = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        disc.name = "PassthroughHole";
+        disc.name = name;
         Destroy(disc.GetComponent<Collider>());
         disc.transform.SetParent(setupRoot.transform, false);
         disc.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
@@ -216,11 +340,11 @@ public class OnboardingManager : MonoBehaviour
         var renderer = disc.GetComponent<MeshRenderer>();
         renderer.material = passthroughHoleMaterial;
         renderer.material.SetFloat(HoleFeatherId, passthroughHoleFeather);
+        // The shader fades from the radius outward; pull it in by half the feather so the fade straddles the ring.
+        renderer.material.SetFloat(HoleExtraId, -passthroughHoleFeather * 0.5f);
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         renderer.receiveShadows = false;
-
-        holeDisc = disc.transform;
-        PlaceHoleDisc();
+        return disc.transform;
     }
 
     private void PlaceHoleDisc()
@@ -228,8 +352,17 @@ public class OnboardingManager : MonoBehaviour
         Vector3 center = ringLine.transform.position;
         // Floor-level tracking origin: the tracking space's y is the real floor.
         float floorY = rig != null ? rig.trackingSpace.position.y : 0f;
-        holeDisc.position = new Vector3(center.x, floorY + passthroughHoleHeight, center.z);
-        holeDisc.localScale = Vector3.one * 2f * (RingRadius + passthroughHoleFeather + 0.05f);
+        Vector3 size = Vector3.one * 2f * (RingRadius + passthroughHoleFeather + 0.05f);
+
+        // The town's ground sits at the ring's height, so the floor cut goes just above the ring.
+        holeDisc.position = new Vector3(center.x, center.y + passthroughHoleHeight, center.z);
+        holeDisc.localScale = size;
+        if (holeCeiling != null)
+        {
+            float ceilingY = Mathf.Max(floorY + passthroughCeilingHeight, center.y + passthroughHoleHeight + 0.5f);
+            holeCeiling.position = new Vector3(center.x, ceilingY, center.z);
+            holeCeiling.localScale = size;
+        }
 
         Shader.SetGlobalVector(PassthroughHoleCenterId, center);
         Shader.SetGlobalFloat(PassthroughHoleRadiusId, RingRadius);
@@ -239,7 +372,8 @@ public class OnboardingManager : MonoBehaviour
     {
         var ring = new GameObject("BoundaryRing");
         ring.transform.SetParent(setupRoot.transform, false);
-        ring.transform.position = new Vector3(head.position.x, head.position.y - ringHeightBelowHead, head.position.z);
+        // Centered on the user; its height is set to the mini town's base once the town is placed.
+        ring.transform.position = head.position;
 
         ringLine = ring.AddComponent<LineRenderer>();
         ringLine.useWorldSpace = false;

@@ -61,11 +61,11 @@ public class DomeBell : MonoBehaviour
     private void Ring(string by)
     {
         // Hands are all over the town while moving/scaling it, so only a deliberate touch counts.
-        if (onboarding == null || onboarding.IsTownGrabbed || onboarding.IsDomeActive)
+        if (onboarding == null || onboarding.IsTownGrabbed || onboarding.IsConfirmed)
             return;
 
         Debug.Log($"[DomeBell] Rung by {by}");
-        onboarding.ActivateDome();
+        onboarding.ConfirmBoundary();
     }
 
     private bool IsHand(Collider other)

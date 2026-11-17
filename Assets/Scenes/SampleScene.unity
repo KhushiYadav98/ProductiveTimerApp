@@ -2685,11 +2685,16 @@ MonoBehaviour:
   ringColor: {r: 0, g: 0.84472036, b: 1, a: 1}
   ringMaterial: {fileID: 0}
   grabbedRingWidthBoost: 2
-  dome: {fileID: 543450652434805239}
+  bigTown: {fileID: 543450651725085389}
+  bigTownFitTo: {fileID: 2758244616967866659}
+  hideMiniTownOnConfirm: 1
+  skySphere: {fileID: 6536931408632936188}
+  dome: {fileID: 0}
   domePadding: 1
   passthroughHole: 1
   passthroughHoleMaterial: {fileID: 2100000, guid: 4d9cef6489917ee4aa25f7f8dc8f9c80, type: 2}
-  passthroughHoleHeight: 0.7
+  passthroughHoleHeight: 0.05
+  passthroughCeilingHeight: 2.5
   passthroughHoleFeather: 0.3
 --- !u!1 &2075812073
 GameObject:
