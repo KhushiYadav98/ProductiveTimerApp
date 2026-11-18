@@ -41,6 +41,10 @@ public class OnboardingManager : MonoBehaviour
     [SerializeField] private Transform bigTownFaceTarget;
     [Tooltip("Where the face target ends up, in degrees from the user's forward (positive = to the right).")]
     [SerializeField] private float bigTownFaceTargetYaw = 45f;
+    [Tooltip("Makes the big town bigger (>1) or smaller (<1) than the ring. 1 = the fit target's edge sits on the ring. " +
+             "Larger values push buildings out past the passthrough hole, so less of the town is cut away.")]
+    [Min(0.1f)]
+    [SerializeField] private float bigTownSizeMultiplier = 1f;
     [Tooltip("Hide the mini town and the ring once the big town is shown.")]
     [SerializeField] private bool hideMiniTownOnConfirm = true;
     [Tooltip("Sky sphere around the town (e.g. Env_Sphere). Drawn double-sided so it's visible from inside.")]
@@ -250,7 +254,7 @@ public class OnboardingManager : MonoBehaviour
         float fitRadius = Mathf.Max(b.extents.x, b.extents.z);
         Vector3 centerOffset = b.center - bigTown.position;
 
-        float k = RingRadius / fitRadius;
+        float k = RingRadius * bigTownSizeMultiplier / fitRadius;
         bigTown.localScale = bigTownStartScale * k;
 
         // Center of the fit target goes to the ring center (the user); the town's ground (its pivot) goes at the ring's height.

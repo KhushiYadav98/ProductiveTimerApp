@@ -5818,7 +5818,7 @@ MonoBehaviour:
   townDiameter: 0.25
   townSpinSpeed: 10
   townBobAmplitude: 0.01
-  ringRadius: 0.8
+  ringRadius: 0.6
   ringWidth: 0.01
   ringSegments: 96
   ringColor: {r: 0, g: 0.84472036, b: 1, a: 1}
@@ -5828,6 +5828,7 @@ MonoBehaviour:
   bigTownFitTo: {fileID: 2758244616967866659}
   bigTownFaceTarget: {fileID: 4125438873960563893}
   bigTownFaceTargetYaw: 45
+  bigTownSizeMultiplier: 2
   hideMiniTownOnConfirm: 1
   skySphere: {fileID: 6536931408632936188}
   dome: {fileID: 0}
