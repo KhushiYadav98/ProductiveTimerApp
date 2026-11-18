@@ -33,6 +33,10 @@ public class ConstructionProject : MonoBehaviour
 
     public UnityEvent onCompleted;
 
+    [Tooltip("Hide the construction site until building starts (e.g. for a later task's building).")]
+    [SerializeField] private bool hideSiteUntilStarted = false;
+
+    public GameObject Site => site;
     public bool IsBuilding { get; private set; }
     public bool IsComplete { get; private set; }
 
@@ -51,6 +55,8 @@ public class ConstructionProject : MonoBehaviour
             buildingScale = building.transform.localScale;
             building.SetActive(false);
         }
+        if (hideSiteUntilStarted && site != null)
+            site.SetActive(false);
     }
 
     /// <summary>Starts the construction animation and dust.</summary>

@@ -7,7 +7,7 @@ using UnityEngine.UI;
 // hand. It's unlocked once that building is completed, then pops up close to the user (within poke reach), on the
 // side toward the building, facing them.
 //   Back: closes the menu.  Exit: quits the app.  End Current Session: ends the running focus session (disabled when
-//   none is running).  New Task: not wired yet.
+//   none is running).  New Task: starts another task (disabled while a session is running).
 public class MainMenu : MonoBehaviour
 {
     [Tooltip("The menu's world-space canvas (e.g. MainMenuCanvas). It's detached from the town at start so the town's " +
@@ -22,6 +22,7 @@ public class MainMenu : MonoBehaviour
     [Tooltip("The menu is unlocked once this building is completed.")]
     [SerializeField] private ConstructionProject unlockedBy;
     [SerializeField] private FocusSession session;
+    [SerializeField] private TaskCreationFlow flow;
 
     [Header("Buttons")]
     [SerializeField] private Button newTaskButton;
@@ -87,6 +88,20 @@ public class MainMenu : MonoBehaviour
             exitButton.onClick.AddListener(ExitApp);
         if (endSessionButton != null)
             endSessionButton.onClick.AddListener(EndSession);
+        if (newTaskButton != null)
+            newTaskButton.onClick.AddListener(NewTask);
+        if (flow == null)
+            flow = FindFirstObjectByType<TaskCreationFlow>();
+    }
+
+    // New task: close the menu and start the task steps (not while a session is running).
+    private void NewTask()
+    {
+        if (session != null && session.IsActive)
+            return;
+        Close();
+        if (flow != null)
+            flow.StartNewTask();
     }
 
     private void OnEnable()
@@ -106,8 +121,8 @@ public class MainMenu : MonoBehaviour
 
     private void Update()
     {
-        if (IsOpen && endSessionButton != null)
-            endSessionButton.interactable = session != null && session.IsActive;
+        if (IsOpen)
+            RefreshButtons();
 
         if (!IsUnlocked || trigger == null || !trigger.gameObject.activeInHierarchy)
             return;
@@ -160,8 +175,7 @@ public class MainMenu : MonoBehaviour
         else
             restScaleForOpen = restScale;
 
-        if (endSessionButton != null)
-            endSessionButton.interactable = session != null && session.IsActive;
+        RefreshButtons();
         menuCanvas.gameObject.SetActive(true);
         if (session != null)
             session.HideMenuPointer();
@@ -173,6 +187,16 @@ public class MainMenu : MonoBehaviour
     }
 
     private Vector3 restScaleForOpen;
+
+    // End Session only while a session runs; New Task only while none does.
+    private void RefreshButtons()
+    {
+        bool running = session != null && session.IsActive;
+        if (endSessionButton != null)
+            endSessionButton.interactable = running;
+        if (newTaskButton != null)
+            newTaskButton.interactable = !running;
+    }
 
     /// <summary>Closes the menu (Back).</summary>
     public void Close()

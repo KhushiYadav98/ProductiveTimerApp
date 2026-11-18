@@ -16,6 +16,12 @@ public class TaskCreationFlow : MonoBehaviour
     [SerializeField] private GameObject nameTaskPanel;
     [SerializeField] private GameObject settingTimerPanel;
 
+    [Header("New task (from the main menu)")]
+    [Tooltip("'Do you want to connect your screen?' panel shown first for a new task.")]
+    [SerializeField] private GameObject selectScreenTaskPanel;
+    [SerializeField] private Button selectScreenYesButton;
+    [SerializeField] private Button selectScreenNoButton;
+
     [Header("Controls")]
     [SerializeField] private Button createTaskButton;
     [SerializeField] private Button okButton;
@@ -64,6 +70,11 @@ public class TaskCreationFlow : MonoBehaviour
 
         if (createTaskButton != null)
             createTaskButton.onClick.AddListener(ShowNamePanel);
+        if (selectScreenNoButton != null)
+            selectScreenNoButton.onClick.AddListener(ShowNamePanel);
+        if (selectScreenYesButton != null)
+            selectScreenYesButton.onClick.AddListener(() => Debug.Log("[TaskCreation] Screen connection not set up yet."));
+        RegisterPanels(selectScreenTaskPanel);
         if (okButton != null)
             okButton.onClick.AddListener(SubmitTitle);
         if (timerOkButton != null)
@@ -117,6 +128,18 @@ public class TaskCreationFlow : MonoBehaviour
         }
     }
 
+    /// <summary>Starts another task: "connect your screen?" first; No goes on to naming the task and setting its time.</summary>
+    public void StartNewTask()
+    {
+        if (selectScreenTaskPanel != null)
+            ShowOnly(selectScreenTaskPanel);
+        else
+        {
+            ShowOnly(nameTaskPanel);
+            ShowNamePanel();
+        }
+    }
+
     public void ShowNamePanel()
     {
         if (titleInput != null)
@@ -146,7 +169,10 @@ public class TaskCreationFlow : MonoBehaviour
     public void ShowTimerPanel()
     {
         SetPanel(settingTimerPanel);
-        if (timerPicker != null)
+        // The session decides which times can be picked for this task (e.g. 25 or 50 minutes).
+        if (session != null)
+            session.ConfigurePicker(timerPicker);
+        else if (timerPicker != null)
             timerPicker.ResetTo(0);
     }
 

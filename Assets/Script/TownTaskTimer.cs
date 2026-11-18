@@ -155,6 +155,13 @@ public class TownTaskTimer : MonoBehaviour
         Debug.Log("[TownTimer] Countdown cancelled");
     }
 
+    /// <summary>Which building is constructed during the next countdown.</summary>
+    public void SetConstruction(ConstructionProject project)
+    {
+        if (!IsRunning && project != null)
+            construction = project;
+    }
+
     /// <summary>Holds the countdown: the timer, the train and the construction all stop.</summary>
     public void Pause()
     {

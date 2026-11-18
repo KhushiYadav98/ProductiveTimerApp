@@ -12,9 +12,32 @@ using UnityEngine.UI;
 // Sounds are CC0 (see Assets/Audio/SFX/CREDITS.txt).
 public class FocusSession : MonoBehaviour
 {
+    // One task "round": which building it constructs, which times can be picked, and its break.
+    [System.Serializable]
+    public class Round
+    {
+        public string name = "Task";
+        [Tooltip("The building constructed during this task.")]
+        public ConstructionProject project;
+        [Header("Timer options (minutes)")]
+        public int minMinutes = 0;
+        public int maxMinutes = 1;
+        public int stepMinutes = 1;
+        public int startMinutes = 0;
+        [Header("Break (seconds)")]
+        [Tooltip("Focus time before the break; 0 = no break.")]
+        public float breakAfter = 20f;
+        public float breakDuration = 20f;
+        [Tooltip("Only tasks at least this long (minutes) get the break.")]
+        public int breakMinMinutes = 0;
+    }
+
     [SerializeField] private TaskCreationFlow flow;
     [SerializeField] private TownTaskTimer timer;
+    [Tooltip("Used when no rounds are set.")]
     [SerializeField] private ConstructionProject construction;
+    [Tooltip("Tasks in order (e.g. Library, then Bakery). After the last one, it keeps using the last.")]
+    [SerializeField] private Round[] rounds;
 
     [Header("Panels (on the task canvas)")]
     [SerializeField] private GameObject timeToFocusPanel;
@@ -54,6 +77,14 @@ public class FocusSession : MonoBehaviour
 
     public bool IsActive { get; private set; }
     public bool IsOnBreak { get; private set; }
+    public int RoundIndex { get; private set; }
+    public Round CurrentRound => rounds != null && rounds.Length > 0 ? rounds[Mathf.Min(RoundIndex, rounds.Length - 1)] : null;
+    private ConstructionProject CurrentProject => CurrentRound != null && CurrentRound.project != null ? CurrentRound.project : construction;
+
+    private float activeBreakAfter;
+    private float activeBreakDuration;
+    private Vector3 constructionSignOffset, completedSignOffset; // relative to the first round's site, TownCanvas space
+    private bool signOffsetsStored;
 
     private Transform head;
     private AudioSource source;
@@ -84,8 +115,49 @@ public class FocusSession : MonoBehaviour
             noButton.interactable = false; // not supported yet: the task has to be finished
         if (pointTowardsMenuSign != null)
             pointTowardsMenuSign.SetActive(false); // only after the building is completed
+        StoreSignOffsets();
         if (townCanvas != null)
             townCanvas.SetActive(false);
+    }
+
+    // The signs are placed (in the scene) over the first round's site; later rounds get them over their own site.
+    private void StoreSignOffsets()
+    {
+        var first = rounds != null && rounds.Length > 0 && rounds[0].project != null ? rounds[0].project : construction;
+        if (townCanvas == null || first == null || first.Site == null)
+            return;
+        Vector3 site = townCanvas.transform.InverseTransformPoint(first.Site.transform.position);
+        if (constructionSign != null)
+            constructionSignOffset = constructionSign.transform.localPosition - site;
+        if (buildingCompletedSign != null)
+            completedSignOffset = buildingCompletedSign.transform.localPosition - site;
+        signOffsetsStored = true;
+    }
+
+    private void PlaceSignsOver(ConstructionProject project)
+    {
+        if (!signOffsetsStored || project == null || project.Site == null)
+            return;
+        Vector3 site = townCanvas.transform.InverseTransformPoint(project.Site.transform.position);
+        if (constructionSign != null)
+            constructionSign.transform.localPosition = site + constructionSignOffset;
+        if (buildingCompletedSign != null)
+            buildingCompletedSign.transform.localPosition = site + completedSignOffset;
+    }
+
+    /// <summary>Sets up the Set Timer picker for the current round (e.g. 25 or 50 minutes).</summary>
+    public void ConfigurePicker(TimerPicker picker)
+    {
+        if (picker == null)
+            return;
+        var round = CurrentRound;
+        if (round == null)
+        {
+            picker.ResetTo(0);
+            return;
+        }
+        picker.SetRange(round.minMinutes, round.maxMinutes, round.stepMinutes);
+        picker.ResetTo(round.startMinutes);
     }
 
     private void OnEnable()
@@ -105,7 +177,24 @@ public class FocusSession : MonoBehaviour
     {
         IsActive = true;
         IsOnBreak = false;
-        hadBreak = false;
+
+        // This round's building and break rule.
+        var round = CurrentRound;
+        var project = CurrentProject;
+        timer.SetConstruction(project);
+        PlaceSignsOver(project);
+        if (round != null)
+        {
+            activeBreakAfter = round.breakAfter;
+            activeBreakDuration = round.breakDuration;
+            hadBreak = round.breakAfter <= 0f || seconds / 60f < round.breakMinMinutes - 0.01f;
+        }
+        else
+        {
+            activeBreakAfter = breakAfter;
+            activeBreakDuration = breakDuration;
+            hadBreak = false;
+        }
 
         flow.ShowOnly(timeToFocusPanel);
         Play(focusStart);
@@ -120,7 +209,7 @@ public class FocusSession : MonoBehaviour
         if (!IsActive || hadBreak || timer == null || !timer.IsRunning || timer.IsPaused)
             return;
         // One break, if there's still time left after it.
-        if (timer.ElapsedSeconds >= breakAfter && timer.RemainingSeconds > 1f)
+        if (timer.ElapsedSeconds >= activeBreakAfter && timer.RemainingSeconds > 1f)
             StartBreak();
     }
 
@@ -152,9 +241,9 @@ public class FocusSession : MonoBehaviour
     private IEnumerator BreakCountdown()
     {
         // The "Break time" image for a few seconds, then the town to enjoy until the break is over.
-        yield return new WaitForSeconds(Mathf.Min(breakMessageTime, breakDuration));
+        yield return new WaitForSeconds(Mathf.Min(breakMessageTime, activeBreakDuration));
         flow.HideAll();
-        yield return new WaitForSeconds(Mathf.Max(0f, breakDuration - breakMessageTime));
+        yield return new WaitForSeconds(Mathf.Max(0f, activeBreakDuration - breakMessageTime));
         flow.ShowOnly(breakOverPanel);
         Play(breakOver);
         routine = null;
@@ -187,8 +276,12 @@ public class FocusSession : MonoBehaviour
     {
         flow.HideAll();
         IsActive = false;
-        if (construction != null)
-            construction.Complete();
+        var project = CurrentProject;
+        if (project != null)
+            project.Complete();
+        // On to the next building for the next task.
+        if (rounds != null && RoundIndex < rounds.Length - 1)
+            RoundIndex++;
         Play(buildingCompleted);
         ShowSigns(construction: false, station: false, completed: true);
         Restart(HideSignsAfter(buildingCompletedTime));

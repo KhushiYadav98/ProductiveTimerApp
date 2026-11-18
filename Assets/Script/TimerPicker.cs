@@ -63,6 +63,14 @@ public class TimerPicker : MonoBehaviour
     }
 
     /// <summary>Shows the given time without animating (e.g. when the panel opens).</summary>
+    /// <summary>Changes the selectable range (e.g. 25 to 50 in steps of 25).</summary>
+    public void SetRange(int min, int max, int step)
+    {
+        minMinutes = min;
+        maxMinutes = Mathf.Max(min, max);
+        stepMinutes = Mathf.Max(1, step);
+    }
+
     public void ResetTo(int minutes)
     {
         Init();
