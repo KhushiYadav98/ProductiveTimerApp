@@ -4,8 +4,10 @@ using UnityEngine;
 // Makes the town's citizens stroll around the plaza promenade (by default its inner lane, clear of the benches and
 // lamps; anything solid on the ring is avoided): each one walks a stretch, pauses, picks a new spot, and so on, with a little
 // hop and waddle as it goes. They freeze where they are while the town is in focus mode (focus timer running), and
-// carry on during breaks and outside a session. Everything is computed in the citizens' parent's space, so it works
-// at any town scale and rotation. The models face +Z.
+// carry on during breaks and outside a session. Now and then a citizen chats in soft animal-style gibberish (from where
+// it stands, in its own voice pitch, bobbing as it talks); they're quiet while the town is in focus mode.
+// Everything is computed in the citizens' parent's space, so it works at any town scale and rotation.
+// The models face +Z.
 public class CitizenWalkers : MonoBehaviour
 {
     [Tooltip("Parent of the citizens (each direct child is one citizen), e.g. Citizens_Lineup_Unity.")]
@@ -39,6 +41,17 @@ public class CitizenWalkers : MonoBehaviour
     [SerializeField] private float waddleDegrees = 7f;
     [SerializeField] private float turnSpeed = 360f;
 
+    [Header("Chatter")]
+    [Tooltip("Short gibberish phrases (e.g. Assets/Audio/Ambience/Babble).")]
+    [SerializeField] private AudioClip[] babble;
+    [Range(0f, 1f)] [SerializeField] private float chatterVolume = 0.22f;
+    [Tooltip("Seconds between someone saying something (min/max).")]
+    [SerializeField] private Vector2 chatterInterval = new Vector2(2.5f, 6f);
+    [Tooltip("Voice pitch range; small/ghostly citizens get the higher end.")]
+    [SerializeField] private Vector2 voicePitch = new Vector2(0.9f, 1.45f);
+    [Tooltip("How much a citizen bobs while talking (fraction of its size).")]
+    [SerializeField] private float talkBob = 0.06f;
+
     private class Citizen
     {
         public Transform t;
@@ -49,6 +62,9 @@ public class CitizenWalkers : MonoBehaviour
         public float fromAngle, toAngle, fromRadius, toRadius;
         public float walkTime, walkLength, idleUntil, speed, stepPhase, yaw;
         public bool walking;
+        public float voice;            // pitch
+        public float talkUntil;
+        public Vector3 restScale;
         public float segStart, segEnd; // free stretch of the ring this citizen strolls in (degrees, end > start)
     }
 
@@ -58,6 +74,9 @@ public class CitizenWalkers : MonoBehaviour
     private Vector3 center;   // local
     private float plazaRadius; // local
     private bool active;
+    private AudioSource[] voices;
+    private int nextVoice;
+    private float nextChatter;
 
     public bool IsFrozen => timer != null && timer.IsRunning && !timer.IsPaused;
 
@@ -125,12 +144,68 @@ public class CitizenWalkers : MonoBehaviour
             };
             c.yaw = c.angle + 90f * (Random.value < 0.5f ? 1f : -1f); // facing along the ring
             c.idleUntil = Random.Range(0f, 1.5f);
+            c.restScale = t.localScale;
+            c.voice = VoiceFor(t.name);
             Place(c, 0f, 0f);
             citizens.Add(c);
         }
     }
 
-    private void Begin() => active = true;
+    private void Begin()
+    {
+        active = true;
+        nextChatter = Time.time + Random.Range(1f, 3f);
+    }
+
+    // Small and ghostly citizens get higher voices; the rest are spread over the range.
+    private float VoiceFor(string citizenName)
+    {
+        string n = citizenName.ToLowerInvariant();
+        float k = n.Contains("ghost") || n.Contains("chick") ? Random.Range(0.75f, 1f)
+                : n.Contains("fox") || n.Contains("cat") ? Random.Range(0.1f, 0.45f)
+                : Random.Range(0.3f, 0.8f);
+        return Mathf.Lerp(voicePitch.x, voicePitch.y, k);
+    }
+
+    private void Chatter(float now)
+    {
+        if (babble == null || babble.Length == 0 || now < nextChatter)
+            return;
+        nextChatter = now + Random.Range(chatterInterval.x, chatterInterval.y);
+
+        if (voices == null)
+        {
+            voices = new AudioSource[3];
+            for (int i = 0; i < voices.Length; i++)
+            {
+                var go = new GameObject("CitizenVoice" + i);
+                go.transform.SetParent(transform, false);
+                var s = go.AddComponent<AudioSource>();
+                s.playOnAwake = false;
+                s.spatialBlend = 1f;
+                s.rolloffMode = AudioRolloffMode.Linear;
+                s.minDistance = 0.5f;
+                s.maxDistance = 12f;
+                s.dopplerLevel = 0f;
+                voices[i] = s;
+            }
+        }
+
+        var c = citizens[Random.Range(0, citizens.Count)];
+        if (c.t == null || now < c.talkUntil)
+            return;
+        var clip = babble[Random.Range(0, babble.Length)];
+        if (clip == null)
+            return;
+        var src = voices[nextVoice];
+        nextVoice = (nextVoice + 1) % voices.Length;
+        src.transform.position = c.t.position;
+        src.clip = clip;
+        src.pitch = c.voice * Random.Range(0.96f, 1.04f);
+        src.volume = chatterVolume * Random.Range(0.75f, 1f);
+        src.Play();
+        c.talkUntil = now + clip.length / Mathf.Max(src.pitch, 0.1f);
+    }
 
     // The ring minus the angles blocked by solid things overlapping it.
     private void FindFreeSegments(float citizenHeight)
@@ -257,6 +332,8 @@ public class CitizenWalkers : MonoBehaviour
 
         bool frozen = IsFrozen;
         float now = Time.time;
+        if (!frozen)
+            Chatter(now);
         foreach (var c in citizens)
         {
             if (c.t == null)
@@ -340,5 +417,10 @@ public class CitizenWalkers : MonoBehaviour
         c.t.localPosition = p;
         // Face the walking direction (models face +Z), with a side-to-side waddle.
         c.t.localRotation = Quaternion.Euler(0f, c.yaw, 0f) * Quaternion.Euler(0f, 0f, waddle) * c.restRotation;
+
+        // Talking: a quick squash-and-stretch bob, like chattering.
+        float talk = Time.time < c.talkUntil ? Mathf.Abs(Mathf.Sin(Time.time * Mathf.PI * 7f)) * talkBob : 0f;
+        // Citizens are rotated -90 on X (Blender export): their local Z is world up.
+        c.t.localScale = Vector3.Scale(c.restScale, new Vector3(1f - talk * 0.5f, 1f - talk * 0.5f, 1f + talk));
     }
 }

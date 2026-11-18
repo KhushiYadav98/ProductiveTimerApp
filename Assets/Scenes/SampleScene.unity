@@ -3446,10 +3446,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TownAmbience
   onboarding: {fileID: 1739336026}
   timer: {fileID: 1707636494}
-  townLoop: {fileID: 8300000, guid: b6323fe04b7d4bc438857f5838a439e6, type: 3}
+  townLoop: {fileID: 8300000, guid: 817e54cc61c112246a31ee611ac4e431, type: 3}
   focusLoop: {fileID: 8300000, guid: bb75a26fb1df1de46ba961b6b8a48ecc, type: 3}
-  townVolume: 0.5
+  townVolume: 0.4
   focusVolume: 0.45
+  trainLoop: {fileID: 8300000, guid: d09c24d44aea7b146b16a659826eb4ed, type: 3}
+  trainEmitter: {fileID: 5732001270846625609}
+  trainVolume: 0.12
   fadeTime: 1.5
 --- !u!4 &803327039
 Transform:
@@ -6101,6 +6104,27 @@ MonoBehaviour:
   hopHeight: 0.08
   waddleDegrees: 7
   turnSpeed: 360
+  babble:
+  - {fileID: 8300000, guid: de9bd5739e5b54b40bf1e67a37f6b374, type: 3}
+  - {fileID: 8300000, guid: babc5d6489fa942468b2f8737054eaa3, type: 3}
+  - {fileID: 8300000, guid: 843298a53b68fa547b4610a84483bb6b, type: 3}
+  - {fileID: 8300000, guid: 8cf4d569c6f772b4c944501ebcd7ad2d, type: 3}
+  - {fileID: 8300000, guid: 80e8d45a4a20f484ea4d08269c8fd4ea, type: 3}
+  - {fileID: 8300000, guid: 6a3f0cf0ef007c5478cbe119f25d5d9a, type: 3}
+  - {fileID: 8300000, guid: ddbc2f03e22198143a264b252eda7e2f, type: 3}
+  - {fileID: 8300000, guid: 3170a207a74252b4a94d83435c5ba3b6, type: 3}
+  - {fileID: 8300000, guid: c9fe050601950f34c9e5b0a1511ea79f, type: 3}
+  - {fileID: 8300000, guid: 17b34f903a5068e4d89bb420d15e9a7a, type: 3}
+  - {fileID: 8300000, guid: 29978ee8e3e22cd42a6f1a53714645e6, type: 3}
+  - {fileID: 8300000, guid: 14432e171947ac24393218706ab7e936, type: 3}
+  - {fileID: 8300000, guid: afd376c23eb59da4eb40cd3cfb3c363e, type: 3}
+  - {fileID: 8300000, guid: d592f7362883fb842bc717dd74324851, type: 3}
+  - {fileID: 8300000, guid: 03c2acd620ba0224a9e65bbe5fe0a562, type: 3}
+  - {fileID: 8300000, guid: 19d94f5fc7eeeae4f98973008858e3a8, type: 3}
+  chatterVolume: 0.22
+  chatterInterval: {x: 2.5, y: 6}
+  voicePitch: {x: 0.9, y: 1.45}
+  talkBob: 0.06
 --- !u!4 &1547145444
 Transform:
   m_ObjectHideFlags: 0
