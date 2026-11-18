@@ -79,6 +79,12 @@ public class OnboardingManager : MonoBehaviour
     /// <summary>Raised once the bell has confirmed the size and the big town is shown.</summary>
     public event System.Action Confirmed;
 
+    /// <summary>Raised after the mini town (and ring) is placed in front of the user, including on respawn.</summary>
+    public event System.Action Spawned;
+
+    /// <summary>The mini town being sized (null until spawned).</summary>
+    public Transform MiniTown => town;
+
     private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
     private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
     private static readonly int HoleFeatherId = Shader.PropertyToID("_HoleFeather");
@@ -337,6 +343,8 @@ public class OnboardingManager : MonoBehaviour
         // The ring starts (and stays, until the bell) at the mini town's base height, centered on the user.
         Vector3 ringPos = ringLine.transform.position;
         ringLine.transform.position = new Vector3(ringPos.x, townBasePosition.y, ringPos.z);
+
+        Spawned?.Invoke();
     }
 
     // Flat quads with the "Passthrough Hole" shader: one just above the floor and, optionally, one at ceiling height.

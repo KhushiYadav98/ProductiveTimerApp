@@ -36,6 +36,7 @@ Shader "ProductivityTown/Hologram Blueprint"
 
         [Header(Build Reveal (needs HologramTown component))]
         _Reveal ("Reveal (0 = hidden, 1 = fully built)", Range(0, 1)) = 1
+        _Fade ("Fade (whole object)", Range(0, 1)) = 1
         [HDR] _RevealEdgeColor ("Reveal Edge Color", Color) = (0.6, 1, 1, 1)
         _RevealBand ("Reveal Edge Band (town units)", Float) = 0.02
 
@@ -93,6 +94,7 @@ Shader "ProductivityTown/Hologram Blueprint"
                 float _Reveal;
                 float4 _RevealEdgeColor;
                 float _RevealBand;
+                float _Fade;
                 float _Cull;
                 // Set per renderer by HologramTown.cs (zero when the component is absent).
                 float4x4 _TownWorldToLocal;
@@ -201,7 +203,8 @@ Shader "ProductivityTown/Hologram Blueprint"
                             + _RevealEdgeColor.rgb * revealGlow;
                 float alpha = saturate(fillA + rim + grid + edge + scan + revealGlow);
 
-                return float4(color, alpha);
+                // Premultiplied: fading scales both color and coverage.
+                return float4(color, alpha) * _Fade;
             }
             ENDHLSL
         }
