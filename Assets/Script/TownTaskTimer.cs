@@ -34,6 +34,8 @@ public class TownTaskTimer : MonoBehaviour
     [SerializeField] private Transform station;
     [Tooltip("Engine smoke; puffs faster while the train drives.")]
     [SerializeField] private SmokePuffs smoke;
+    [Tooltip("Building constructed while the timer runs and completed when it ends.")]
+    [SerializeField] private ConstructionProject construction;
     [Tooltip("Parks the train at the station when the bell shows the town.")]
     [SerializeField] private OnboardingManager onboarding;
 
@@ -101,6 +103,8 @@ public class TownTaskTimer : MonoBehaviour
         PrepareTrain();
         if (smoke != null)
             smoke.Moving = true;
+        if (construction != null)
+            construction.StartBuilding();
         Debug.Log($"[TownTimer] Countdown started: {seconds:F0} s");
     }
 
@@ -133,6 +137,8 @@ public class TownTaskTimer : MonoBehaviour
         PlaceTrain(1f);
         if (smoke != null)
             smoke.Moving = false;
+        if (construction != null)
+            construction.Complete();
         if (display != null)
             StartCoroutine(Pulse(display.transform));
         Debug.Log("[TownTimer] Countdown finished");
