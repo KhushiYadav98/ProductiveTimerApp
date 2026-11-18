@@ -38,6 +38,8 @@ public class FocusSession : MonoBehaviour
     [Tooltip("Focus time before the break.")]
     [SerializeField] private float breakAfter = 20f;
     [SerializeField] private float breakDuration = 20f;
+    [Tooltip("How long the 'Break time' image stays up at the start of the break.")]
+    [SerializeField] private float breakMessageTime = 3f;
     [SerializeField] private float buildingCompletedTime = 5f;
 
     [Header("Audio")]
@@ -145,7 +147,10 @@ public class FocusSession : MonoBehaviour
 
     private IEnumerator BreakCountdown()
     {
-        yield return new WaitForSeconds(breakDuration);
+        // The "Break time" image for a few seconds, then the town to enjoy until the break is over.
+        yield return new WaitForSeconds(Mathf.Min(breakMessageTime, breakDuration));
+        flow.HideAll();
+        yield return new WaitForSeconds(Mathf.Max(0f, breakDuration - breakMessageTime));
         flow.ShowOnly(breakOverPanel);
         Play(breakOver);
         routine = null;

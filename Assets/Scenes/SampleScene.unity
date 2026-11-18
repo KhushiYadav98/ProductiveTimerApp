@@ -2302,6 +2302,7 @@ MonoBehaviour:
   focusMessageTime: 3
   breakAfter: 20
   breakDuration: 20
+  breakMessageTime: 3
   buildingCompletedTime: 5
   focusStart: {fileID: 8300000, guid: 54a21ac8143daae4a8395b8700f31c42, type: 3}
   breakStart: {fileID: 8300000, guid: 1805cc9d519c6a64c9b904e3ceafab92, type: 3}
@@ -3413,6 +3414,57 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1237599417}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &803327037
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 803327039}
+  - component: {fileID: 803327038}
+  m_Layer: 0
+  m_Name: TownAmbience
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &803327038
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 803327037}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6e546ae621b70247876f12b94b5a9e9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TownAmbience
+  onboarding: {fileID: 1739336026}
+  timer: {fileID: 1707636494}
+  townLoop: {fileID: 8300000, guid: b6323fe04b7d4bc438857f5838a439e6, type: 3}
+  focusLoop: {fileID: 8300000, guid: bb75a26fb1df1de46ba961b6b8a48ecc, type: 3}
+  townVolume: 0.5
+  focusVolume: 0.45
+  fadeTime: 1.5
+--- !u!4 &803327039
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 803327037}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &832575517
 GameObject:
@@ -5992,6 +6044,78 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _facing: 0
   _doubleSided: 0
+--- !u!1 &1547145442
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1547145444}
+  - component: {fileID: 1547145443}
+  m_Layer: 0
+  m_Name: CitizenWalkers
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1547145443
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1547145442}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0cea0f0d3dd3ad4da7ff46cb717cf93, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CitizenWalkers
+  citizensRoot: {fileID: 8388726831481097353}
+  plazaOuterCurb: {fileID: 7380126946726475812}
+  onboarding: {fileID: 1739336026}
+  timer: {fileID: 1707636494}
+  ringBand: {x: 0.845, y: 0.87}
+  walkArc: {x: 12, y: 40}
+  obstaclesRoot: {fileID: 0}
+  ignoreObstacles:
+  - Flower
+  - Path
+  - Plaza
+  - Grass
+  - Base
+  - Rail
+  - Sleeper
+  - Track
+  - Field
+  - River
+  - Train
+  - PT_
+  - TownCanvas
+  clearance: 0.3
+  speed: {x: 0.8, y: 1.3}
+  idleTime: {x: 0.8, y: 3}
+  stepsPerSecond: 3.2
+  hopHeight: 0.08
+  waddleDegrees: 7
+  turnSpeed: 360
+--- !u!4 &1547145444
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1547145442}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1554376406
 GameObject:
   m_ObjectHideFlags: 0
@@ -225848,7 +225972,7 @@ Transform:
   m_GameObject: {fileID: 9160724299660154419}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.008129896, z: -0, w: 0.99996704}
-  m_LocalPosition: {x: -0.05237913, y: 0, z: 1.2603338}
+  m_LocalPosition: {x: -0.05237913, y: 0.025, z: 1.2603338}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -246689,3 +246813,5 @@ SceneRoots:
   - {fileID: 2142248590}
   - {fileID: 424923335}
   - {fileID: 946754737}
+  - {fileID: 803327039}
+  - {fileID: 1547145444}

@@ -31,3 +31,6 @@ Session/Break_Over.wav         = maximize_005.wav     - "Interface Sounds" by Ke
 Session/Task_Finished.wav      = question_002.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
 Session/Building_Completed.wav = confirmation_003.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
 Session/Break_Start.wav        = pleasing-bell.wav    - "Pleasing Bell Sound Effect" by Spring Spring, CC0
+
+../Ambience/Town_Ambience.ogg = amb_morning.ogg - "AMB - Morning Sounds (perfect loop)" by kresiek-the-furry, CC0
+                                https://opengameart.org/content/amb-morning-sounds-perfect-loop
