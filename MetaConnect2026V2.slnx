@@ -98,6 +98,7 @@
   <Project Path="Meta.XR.Editor.PlayCompanion.csproj" />
   <Project Path="Meta.XR.Editor.Reflection.csproj" />
   <Project Path="Unity.XR.Hands.Analytics.Editor.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Meta.XR.BuildingBlocks.DepthAPI.Editor.csproj" />
   <Project Path="Meta.XR.ImmersiveDebugger.Editor.csproj" />
   <Project Path="Unity.XR.CoreUtils.Editor.csproj" />
@@ -156,7 +157,6 @@
   <Project Path="meta.xr.ai.agentbridge.telemetry.csproj" />
   <Project Path="Meta.VoiceSDK.Mic.Other.csproj" />
   <Project Path="Meta.Voice.Hub.Runtime.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
   <Project Path="Unity.XR.OpenXR.Features.MetaQuestSupport.csproj" />
   <Project Path="Unity.Pipeline.Attributes.csproj" />
   <Project Path="Meta.XR.ImmersiveDebugger.Interface.csproj" />
