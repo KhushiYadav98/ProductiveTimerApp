@@ -60,6 +60,9 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Height above the ring (where the town's ground is placed) of the floor punch disc. " +
              "Keep it just above the town's ground so the cut ends at the ring.")]
     [SerializeField] private float passthroughHoleHeight = 0.05f;
+    [Tooltip("Also punch through the sky above the ring, showing the real ceiling. Off: only the floor shows the real " +
+             "room and the virtual sky stays overhead.")]
+    [SerializeField] private bool passthroughCeiling = false;
     [Tooltip("Height above the floor of the ceiling punch disc; the sky above it, inside the ring, shows the real room.")]
     [SerializeField] private float passthroughCeilingHeight = 2.5f;
     [Tooltip("Width of the soft edge between the real room and the town, in meters (centered on the ring).")]
@@ -336,9 +339,9 @@ public class OnboardingManager : MonoBehaviour
         ringLine.transform.position = new Vector3(ringPos.x, townBasePosition.y, ringPos.z);
     }
 
-    // Two flat quads with the "Passthrough Hole" shader, one just above the floor and one at ceiling height.
-    // Each clears whatever virtual content is behind it inside the ring, so the ring becomes a floor-to-ceiling
-    // column of real room; the town and sky beyond the ring are untouched.
+    // Flat quads with the "Passthrough Hole" shader: one just above the floor and, optionally, one at ceiling height.
+    // Each clears whatever virtual content is behind it inside the ring, so the real floor shows inside the ring
+    // (and the real ceiling too, if enabled); the town and sky beyond the ring are untouched.
     private void SpawnHoleDiscs()
     {
         if (!passthroughHole)
@@ -350,7 +353,8 @@ public class OnboardingManager : MonoBehaviour
         }
 
         holeDisc = CreateHoleDisc("PassthroughHole_Floor");
-        holeCeiling = CreateHoleDisc("PassthroughHole_Ceiling");
+        if (passthroughCeiling)
+            holeCeiling = CreateHoleDisc("PassthroughHole_Ceiling");
         PlaceHoleDisc();
     }
 
