@@ -37,6 +37,10 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Part of the big town whose edge is matched to the ring (e.g. Plaza_OuterCurb, so the user stands in the plaza). " +
              "If empty, the whole town's edge is matched to the ring.")]
     [SerializeField] private Transform bigTownFitTo;
+    [Tooltip("Optional part of the big town (e.g. ClockTower) turned to a fixed direction from the user when it's shown.")]
+    [SerializeField] private Transform bigTownFaceTarget;
+    [Tooltip("Where the face target ends up, in degrees from the user's forward (positive = to the right).")]
+    [SerializeField] private float bigTownFaceTargetYaw = 45f;
     [Tooltip("Hide the mini town and the ring once the big town is shown.")]
     [SerializeField] private bool hideMiniTownOnConfirm = true;
     [Tooltip("Sky sphere around the town (e.g. Env_Sphere). Drawn double-sided so it's visible from inside.")]
@@ -81,6 +85,7 @@ public class OnboardingManager : MonoBehaviour
     private Transform head;
     private OVRCameraRig rig;
     private Vector3 bigTownStartScale;
+    private Quaternion bigTownStartRotation;
     // Dome model measurements per unit of localScale, taken when it's first shown.
     private float domeRadiusPerScale;
     private Vector3 domeCenterOffsetPerScale;
@@ -104,6 +109,7 @@ public class OnboardingManager : MonoBehaviour
         if (bigTown != null)
         {
             bigTownStartScale = bigTown.localScale;
+            bigTownStartRotation = bigTown.rotation;
             bigTown.gameObject.SetActive(false);
         }
 
@@ -209,6 +215,7 @@ public class OnboardingManager : MonoBehaviour
             return;
 
         bigTown.localScale = bigTownStartScale;
+        bigTown.rotation = bigTownStartRotation;
         bigTown.gameObject.SetActive(true);
 
         // The town's own preview camera would render over the headset view.
@@ -240,6 +247,19 @@ public class OnboardingManager : MonoBehaviour
         // Center of the fit target goes to the ring center (the user); the town's ground (its pivot) goes at the ring's height.
         Vector3 center = ringLine.transform.position;
         bigTown.position = new Vector3(center.x - centerOffset.x * k, center.y, center.z - centerOffset.z * k);
+
+        // Spin the town about the user (the ring center) so the face target lands at a fixed angle from where
+        // they're looking, e.g. the clock tower 45 degrees to the right.
+        if (bigTownFaceTarget != null)
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            Vector3 toTarget = Vector3.ProjectOnPlane(bigTownFaceTarget.position - center, Vector3.up);
+            if (forward.sqrMagnitude > 0.0001f && toTarget.sqrMagnitude > 0.0001f)
+            {
+                Vector3 desired = Quaternion.Euler(0f, bigTownFaceTargetYaw, 0f) * forward;
+                bigTown.RotateAround(center, Vector3.up, Vector3.SignedAngle(toTarget, desired, Vector3.up));
+            }
+        }
 
         Debug.Log($"[Onboarding] Big town shown: ring radius {RingRadius:F2} m, town scale x{k:F3}");
     }

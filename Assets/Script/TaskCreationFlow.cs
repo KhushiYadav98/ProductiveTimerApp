@@ -5,6 +5,7 @@ using UnityEngine.UI;
 
 // Task creation UI shown after the bell: the canvas appears in front of the user with the "Create task" panel;
 // its button switches to the "Name task" panel, where poking the input field opens an in-world poke keyboard.
+// OK there opens the "Set timer" panel (starting at 00:00), and its OK creates the task.
 public class TaskCreationFlow : MonoBehaviour
 {
     [SerializeField] private OnboardingManager onboarding;
@@ -13,6 +14,7 @@ public class TaskCreationFlow : MonoBehaviour
     [Header("Panels")]
     [SerializeField] private GameObject createTaskPanel;
     [SerializeField] private GameObject nameTaskPanel;
+    [SerializeField] private GameObject settingTimerPanel;
 
     [Header("Controls")]
     [SerializeField] private Button createTaskButton;
@@ -20,6 +22,10 @@ public class TaskCreationFlow : MonoBehaviour
     [SerializeField] private TMP_InputField titleInput;
     [Tooltip("In-world poke keyboard shown when the title input is touched.")]
     [SerializeField] private PokeKeyboard keyboard;
+    [SerializeField] private TimerPicker timerPicker;
+    [SerializeField] private Button timerOkButton;
+    [Tooltip("Countdown on the clock tower (and the train's lap), started by the timer's OK.")]
+    [SerializeField] private TownTaskTimer townTimer;
 
     [Header("Placement")]
     [Tooltip("Distance in front of the head, in meters. Keep it within arm's reach so the buttons can be poked.")]
@@ -32,6 +38,10 @@ public class TaskCreationFlow : MonoBehaviour
     [Header("Events")]
     [Tooltip("Called with the task title when OK is pressed with a non-empty title.")]
     public UnityEvent<string> onTaskTitled;
+    [Tooltip("Called with the task title and its time in minutes when the timer's OK is pressed.")]
+    public UnityEvent<string, int> onTaskCreated;
+
+    public string TaskTitle { get; private set; }
 
     private Transform head;
 
@@ -47,6 +57,11 @@ public class TaskCreationFlow : MonoBehaviour
             createTaskButton.onClick.AddListener(ShowNamePanel);
         if (okButton != null)
             okButton.onClick.AddListener(SubmitTitle);
+        if (timerOkButton != null)
+            timerOkButton.onClick.AddListener(SubmitTimer);
+        if (timerPicker != null && timerOkButton != null)
+            // No zero-minute tasks: OK only works once a time is set.
+            timerPicker.onMinutesChanged.AddListener(m => timerOkButton.interactable = m > 0);
         if (titleInput != null && keyboard != null)
         {
             // The poke keyboard replaces the system keyboard (which never shows in the Editor over Link).
@@ -103,8 +118,34 @@ public class TaskCreationFlow : MonoBehaviour
 
         if (keyboard != null)
             keyboard.Hide();
+        TaskTitle = title;
         Debug.Log($"[TaskCreation] Task titled: {title}");
         onTaskTitled?.Invoke(title);
+        ShowTimerPanel();
+    }
+
+    public void ShowTimerPanel()
+    {
+        SetPanel(settingTimerPanel);
+        if (timerPicker != null)
+            timerPicker.ResetTo(0);
+    }
+
+    private void SubmitTimer()
+    {
+        int minutes = timerPicker != null ? timerPicker.Minutes : 0;
+        if (minutes <= 0)
+            return;
+
+        Debug.Log($"[TaskCreation] Task created: \"{TaskTitle}\" for {minutes} min");
+        onTaskCreated?.Invoke(TaskTitle, minutes);
+
+        // The task is set: put the UI away and start the countdown on the clock tower.
+        if (keyboard != null)
+            keyboard.Hide();
+        canvas.gameObject.SetActive(false);
+        if (townTimer != null)
+            townTimer.StartCountdown(minutes * 60f);
     }
 
     private void SetPanel(GameObject panel)
@@ -113,6 +154,8 @@ public class TaskCreationFlow : MonoBehaviour
             createTaskPanel.SetActive(panel == createTaskPanel);
         if (nameTaskPanel != null)
             nameTaskPanel.SetActive(panel == nameTaskPanel);
+        if (settingTimerPanel != null)
+            settingTimerPanel.SetActive(panel == settingTimerPanel);
     }
 
     private void PlaceInFrontOfUser()
