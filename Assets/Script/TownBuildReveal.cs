@@ -84,8 +84,13 @@ public class TownBuildReveal : MonoBehaviour
         float minY = float.MaxValue, maxY = float.MinValue;
         foreach (var r in GetComponentsInChildren<Renderer>(true))
         {
-            if (r is ParticleSystemRenderer || r == sky || System.Array.IndexOf(exclude ?? new Renderer[0], r) >= 0)
+            if (r == sky || System.Array.IndexOf(exclude ?? new Renderer[0], r) >= 0)
                 continue;
+            if (r is ParticleSystemRenderer)
+            {
+                Hide(r);
+                continue;
+            }
 
             var originals = r.sharedMaterials;
             var replaced = (Material[])originals.Clone();
@@ -99,7 +104,11 @@ public class TownBuildReveal : MonoBehaviour
                 any = true;
             }
             if (!any)
+            {
+                // Other shaders (e.g. the train smoke) can't be cut by the build line: hide them until it reaches them.
+                Hide(r);
                 continue;
+            }
 
             swapped.Add((r, originals));
             r.sharedMaterials = replaced;
@@ -150,7 +159,18 @@ public class TownBuildReveal : MonoBehaviour
         {
             // Ease in-out: a quick foundation, steady build, gentle finish at the rooftops.
             float k = t * t * (3f - 2f * t);
-            Shader.SetGlobalFloat(BuildRevealYId, Mathf.Lerp(from, to, k));
+            float lineY = Mathf.Lerp(from, to, k);
+            Shader.SetGlobalFloat(BuildRevealYId, lineY);
+            for (int i = hidden.Count - 1; i >= 0; i--)
+            {
+                var h = hidden[i];
+                if (h == null || h.transform.position.y <= lineY)
+                {
+                    if (h != null)
+                        h.enabled = true;
+                    hidden.RemoveAt(i);
+                }
+            }
             yield return null;
         }
         Shader.SetGlobalFloat(BuildRevealYId, to);
@@ -205,6 +225,15 @@ public class TownBuildReveal : MonoBehaviour
     }
 
     private Material[] skyCopy;
+    private readonly List<Renderer> hidden = new List<Renderer>();
+
+    private void Hide(Renderer r)
+    {
+        if (!r.enabled)
+            return;
+        r.enabled = false;
+        hidden.Add(r);
+    }
 
     private void RestoreSky()
     {
@@ -228,6 +257,10 @@ public class TownBuildReveal : MonoBehaviour
     private void Restore()
     {
         RestoreSky();
+        foreach (var h in hidden)
+            if (h != null)
+                h.enabled = true;
+        hidden.Clear();
         foreach (var (r, originals) in swapped)
             if (r != null)
                 r.sharedMaterials = originals;

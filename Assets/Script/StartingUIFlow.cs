@@ -12,6 +12,9 @@ public class StartingUIFlow : MonoBehaviour
 {
     private enum Step { Hidden, Place, Scale, Bell, Done }
 
+    /// <summary>False until the "ring the bell" step, so the steps can't be skipped by touching the bell early.</summary>
+    public bool CanRingBell => step == Step.Bell;
+
     [SerializeField] private OnboardingManager onboarding;
     [SerializeField] private Canvas canvas;
 
@@ -45,7 +48,7 @@ public class StartingUIFlow : MonoBehaviour
     private Transform head;
     private Transform town;
     private Vector3 canvasScale;
-    private float spawnScale;
+    private float scaleBaseline;
     private bool grabbedOnce;
     private bool wasGrabbed;
     private bool following;
@@ -89,7 +92,7 @@ public class StartingUIFlow : MonoBehaviour
         StopAll();
         HideAll();
         town = onboarding.MiniTown;
-        spawnScale = town != null ? town.localScale.x : 1f;
+        scaleBaseline = town != null ? town.localScale.x : 1f;
         grabbedOnce = false;
         wasGrabbed = false;
         step = Step.Hidden;
@@ -178,13 +181,9 @@ public class StartingUIFlow : MonoBehaviour
         if (placeTownPanel != null)
             placeTownPanel.SetActive(false);
 
-        // Already resized during the first grab: skip straight to the bell.
-        if (HasScaled())
-        {
-            OnStartedScaling();
-            return;
-        }
-
+        // Always teach scaling next, even if the town was already resized during the first grab (steps stay in order):
+        // only scaling from here on counts.
+        scaleBaseline = town != null ? town.localScale.x : 1f;
         step = Step.Scale;
         ShowPanel(scaleTownPanel);
         if (ghostHands != null)
@@ -205,8 +204,8 @@ public class StartingUIFlow : MonoBehaviour
 
     private bool HasScaled()
     {
-        return town != null && spawnScale > 0f
-               && Mathf.Abs(town.localScale.x / spawnScale - 1f) > scaleThreshold;
+        return town != null && scaleBaseline > 0f
+               && Mathf.Abs(town.localScale.x / scaleBaseline - 1f) > scaleThreshold;
     }
 
     private void Finish()

@@ -21,12 +21,14 @@ public class DomeBell : MonoBehaviour
     };
 
     private Collider bellCollider;
+    private StartingUIFlow flow;
 
     private void Awake()
     {
         bellCollider = GetComponent<Collider>();
         if (onboarding == null)
             onboarding = FindFirstObjectByType<OnboardingManager>();
+        flow = FindFirstObjectByType<StartingUIFlow>();
     }
 
     private void Update()
@@ -62,6 +64,9 @@ public class DomeBell : MonoBehaviour
     {
         // Hands are all over the town while moving/scaling it, so only a deliberate touch counts.
         if (onboarding == null || onboarding.IsTownGrabbed || onboarding.IsConfirmed)
+            return;
+        // Onboarding goes in order (place, then scale, then bell): ignore touches before the bell step.
+        if (flow != null && flow.isActiveAndEnabled && !flow.CanRingBell)
             return;
 
         Debug.Log($"[DomeBell] Rung by {by}");
