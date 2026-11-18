@@ -69,6 +69,9 @@ public class OnboardingManager : MonoBehaviour
     /// <summary>True once the bell has confirmed the size (the big town and/or dome is shown).</summary>
     public bool IsConfirmed { get; private set; }
 
+    /// <summary>Raised once the bell has confirmed the size and the big town is shown.</summary>
+    public event System.Action Confirmed;
+
     private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
     private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
     private static readonly int HoleFeatherId = Shader.PropertyToID("_HoleFeather");
@@ -196,6 +199,8 @@ public class OnboardingManager : MonoBehaviour
                 town.gameObject.SetActive(false);
             ringLine.enabled = false;
         }
+
+        Confirmed?.Invoke();
     }
 
     private void ShowBigTown()
