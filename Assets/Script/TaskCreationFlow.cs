@@ -78,13 +78,13 @@ public class TaskCreationFlow : MonoBehaviour
     private void OnEnable()
     {
         if (onboarding != null)
-            onboarding.Confirmed += Show;
+            onboarding.TownRevealed += Show;
     }
 
     private void OnDisable()
     {
         if (onboarding != null)
-            onboarding.Confirmed -= Show;
+            onboarding.TownRevealed -= Show;
     }
 
     /// <summary>Places the canvas in front of the user and shows the "Create task" panel.</summary>

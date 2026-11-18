@@ -5830,6 +5830,10 @@ MonoBehaviour:
   bigTownFaceTargetYaw: 45
   bigTownSizeMultiplier: 2
   hideMiniTownOnConfirm: 1
+  bigTownReveal: {fileID: 919132147807641720}
+  bellCelebrateTime: 1
+  miniTownDissolveTime: 1.1
+  bigTownDelay: 0.2
   skySphere: {fileID: 6536931408632936188}
   dome: {fileID: 0}
   domePadding: 1
@@ -28447,6 +28451,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 543450651725085389}
+  - component: {fileID: 919132147807641720}
   m_Layer: 0
   m_Name: ProductivityTown_Unity
   m_TagString: Untagged
@@ -28454,6 +28459,27 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
+--- !u!114 &919132147807641720
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 919132147807641719}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2ca7f654450563143ac073806c2727e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TownBuildReveal
+  revealTemplate: {fileID: 2100000, guid: 74ed2f097bbb0c64c83f44d29b1a0a3c, type: 2}
+  duration: 4
+  exclude: []
+  sky: {fileID: 6536931408632936188}
+  skyTemplate: {fileID: 2100000, guid: 20c8db022e4191e4398f950c75bb31b0, type: 2}
+  skyDuration: 2.5
+  skyToTownDelay: 0.15
+  edgeBandFraction: 0.08
+  edgeColor: {r: 1.6, g: 0.95, b: 0.25, a: 1}
 --- !u!1 &919132148179725133
 GameObject:
   m_ObjectHideFlags: 0
@@ -175860,6 +175886,11 @@ MonoBehaviour:
   swingAngle: 18
   swingFrequency: 1.6
   damping: 1.8
+  sparkleMaterial: {fileID: 2100000, guid: cd9f81b7f759e704fa24000a042be2a7, type: 2}
+  sparkleCount: 45
+  celebrateSwingAngle: 32
+  celebratePop: 0.35
+  flashColor: {r: 3, g: 2.6, b: 1.6, a: 1}
 --- !u!4 &7215792046200516387
 Transform:
   m_ObjectHideFlags: 0

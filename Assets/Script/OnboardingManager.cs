@@ -47,6 +47,16 @@ public class OnboardingManager : MonoBehaviour
     [SerializeField] private float bigTownSizeMultiplier = 1f;
     [Tooltip("Hide the mini town and the ring once the big town is shown.")]
     [SerializeField] private bool hideMiniTownOnConfirm = true;
+    [Tooltip("Plays the bottom-to-top build when the big town appears (added to the big town if empty).")]
+    [SerializeField] private TownBuildReveal bigTownReveal;
+
+    [Header("Bell Sequence")]
+    [Tooltip("Time for the bell's celebration before the mini town starts to dissolve.")]
+    [SerializeField] private float bellCelebrateTime = 1f;
+    [Tooltip("The mini town dissolves from the top down over this long (with the ring fading).")]
+    [SerializeField] private float miniTownDissolveTime = 1.1f;
+    [Tooltip("Pause between the mini town vanishing and the big town starting to build.")]
+    [SerializeField] private float bigTownDelay = 0.2f;
     [Tooltip("Sky sphere around the town (e.g. Env_Sphere). Drawn double-sided so it's visible from inside.")]
     [SerializeField] private Renderer skySphere;
 
@@ -88,6 +98,21 @@ public class OnboardingManager : MonoBehaviour
 
     /// <summary>The mini town being sized (null until spawned).</summary>
     public Transform MiniTown => town;
+
+    /// <summary>Raised the moment the bell is touched (before the mini town goes away).</summary>
+    public event System.Action BellRung;
+
+    /// <summary>Raised once the big town has finished building itself.</summary>
+    public event System.Action TownRevealed;
+
+    private static readonly int RevealId = Shader.PropertyToID("_Reveal");
+    private static readonly int FadeId = Shader.PropertyToID("_Fade");
+    private static readonly int UseTownSpaceId = Shader.PropertyToID("_UseTownSpace");
+    private static readonly int TownWorldToLocalId = Shader.PropertyToID("_TownWorldToLocal");
+    private static readonly int TownMinYId = Shader.PropertyToID("_TownMinY");
+    private static readonly int TownMaxYId = Shader.PropertyToID("_TownMaxY");
+    private Coroutine confirmRoutine;
+    private Renderer[] dissolving;
 
     private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
     private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
@@ -206,20 +231,116 @@ public class OnboardingManager : MonoBehaviour
         if (IsConfirmed || ringLine == null)
             return;
         IsConfirmed = true;
+        BellRung?.Invoke();
+        confirmRoutine = StartCoroutine(ConfirmSequence());
+    }
+
+    // Bell celebration -> the mini town dissolves top-down (ring fades) -> the big town builds itself bottom-up.
+    private IEnumerator ConfirmSequence()
+    {
+        yield return new WaitForSeconds(bellCelebrateTime);
+
+        if (hideMiniTownOnConfirm)
+        {
+            yield return DissolveMiniTown();
+            if (town != null)
+                town.gameObject.SetActive(false);
+            ringLine.enabled = false;
+            ResetMiniTownLook();
+            yield return new WaitForSeconds(bigTownDelay);
+        }
 
         ShowBigTown();
         ActivateDome();
         // Before the bell everything is passthrough anyway; now cut the real room back in, inside the ring.
         SpawnHoleDiscs();
+        Confirmed?.Invoke();
 
-        if (hideMiniTownOnConfirm)
+        if (bigTown != null)
         {
-            if (town != null)
-                town.gameObject.SetActive(false);
-            ringLine.enabled = false;
+            if (bigTownReveal == null)
+                bigTownReveal = bigTown.GetComponent<TownBuildReveal>();
+            if (bigTownReveal != null)
+            {
+                if (skySphere != null)
+                    bigTownReveal.SetSky(skySphere);
+                bigTownReveal.Play();
+                while (bigTownReveal.IsRevealing)
+                    yield return null;
+            }
         }
 
-        Confirmed?.Invoke();
+        confirmRoutine = null;
+        TownRevealed?.Invoke();
+    }
+
+    // Uses the hologram shader's build reveal in reverse: a glowing line sweeps down the mini town, erasing it.
+    private IEnumerator DissolveMiniTown()
+    {
+        if (town == null)
+            yield break;
+
+        dissolving = town.GetComponentsInChildren<Renderer>();
+        float minY = float.MaxValue, maxY = float.MinValue;
+        foreach (var r in dissolving)
+        {
+            Bounds b = r.bounds;
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                float y = town.InverseTransformPoint(corner).y;
+                minY = Mathf.Min(minY, y);
+                maxY = Mathf.Max(maxY, y);
+            }
+        }
+
+        var block = new MaterialPropertyBlock();
+        Color ringColorNow = ringLine.startColor;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / Mathf.Max(miniTownDissolveTime, 0.01f))
+        {
+            float reveal = 1f - t * t * (3f - 2f * t);
+            float fade = Mathf.Clamp01((1f - t) / 0.25f); // the last bits fade as the line reaches the ground
+            foreach (var r in dissolving)
+            {
+                if (r == null)
+                    continue;
+                r.GetPropertyBlock(block);
+                block.SetFloat(UseTownSpaceId, 1f);
+                block.SetMatrix(TownWorldToLocalId, town.worldToLocalMatrix);
+                block.SetFloat(TownMinYId, minY);
+                block.SetFloat(TownMaxYId, maxY);
+                block.SetFloat(RevealId, reveal);
+                block.SetFloat(FadeId, fade);
+                r.SetPropertyBlock(block);
+            }
+            Color c = ringColorNow;
+            c.a *= 1f - t;
+            ringLine.startColor = ringLine.endColor = c;
+            Color mc = ringColor;
+            mc.a *= 1f - t;
+            ringLine.material.color = mc;
+            yield return null;
+        }
+    }
+
+    // Undo the dissolve overrides, so the mini town looks normal if it's shown again (respawn).
+    private void ResetMiniTownLook()
+    {
+        if (dissolving != null)
+        {
+            var block = new MaterialPropertyBlock();
+            foreach (var r in dissolving)
+            {
+                if (r == null)
+                    continue;
+                r.GetPropertyBlock(block);
+                block.SetFloat(UseTownSpaceId, 0f);
+                block.SetFloat(RevealId, 1f);
+                block.SetFloat(FadeId, 1f);
+                r.SetPropertyBlock(block);
+            }
+            dissolving = null;
+        }
     }
 
     private void ShowBigTown()
@@ -323,6 +444,14 @@ public class OnboardingManager : MonoBehaviour
 
         // Respawning (e.g. recenter) restarts the sizing step.
         IsConfirmed = false;
+        if (confirmRoutine != null)
+        {
+            StopCoroutine(confirmRoutine);
+            confirmRoutine = null;
+        }
+        ResetMiniTownLook();
+        if (bigTownReveal != null)
+            bigTownReveal.Cancel();
         if (bigTown != null)
         {
             bigTown.gameObject.SetActive(false);
