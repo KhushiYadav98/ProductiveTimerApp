@@ -116201,6 +116201,7 @@ GameObject:
   - component: {fileID: 6103287208619621552}
   - component: {fileID: 6418351302015814251}
   - component: {fileID: 6418351302015814252}
+  - component: {fileID: 6418351302015814253}
   m_Layer: 0
   m_Name: MiniTown
   m_TagString: Untagged
@@ -155883,6 +155884,52 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.6501094, y: 0.043532163, z: 0.6695743}
   m_Center: {x: -0.0070329504, y: -0.0073209964, z: 0.035017926}
+--- !u!114 &6418351302015814253
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4747543787015317419}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e2f8f6e9e6f3e114b9bf9a57c2160615, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Oculus.Interaction::Oculus.Interaction.PointableUnityEventWrapper
+  _pointable: {fileID: 6103287208619621552}
+  _whenRelease:
+    m_PersistentCalls:
+      m_Calls: []
+  _whenHover:
+    m_PersistentCalls:
+      m_Calls: []
+  _whenUnhover:
+    m_PersistentCalls:
+      m_Calls: []
+  _whenSelect:
+    m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 7215372750836989587}
+        m_TargetAssemblyTypeName: BellHint, Assembly-CSharp
+        m_MethodName: StartHint
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: 
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  _whenUnselect:
+    m_PersistentCalls:
+      m_Calls: []
+  _whenMove:
+    m_PersistentCalls:
+      m_Calls: []
+  _whenCancel:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!23 &6419236912869330678
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -174944,6 +174991,7 @@ GameObject:
   - component: {fileID: 2197696121431025444}
   - component: {fileID: 7215372750836989585}
   - component: {fileID: 7215372750836989586}
+  - component: {fileID: 7215372750836989587}
   m_Layer: 0
   m_Name: BELLRING_SETUPDONE
   m_TagString: Untagged
@@ -174992,6 +175040,26 @@ MonoBehaviour:
   - {fileID: 626002928}
   - {fileID: 868900552}
   touchDistance: 0.015
+--- !u!114 &7215372750836989587
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7215372750836989584}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a9b816a7287141f4ba2ce0baa111321b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BellHint
+  onboarding: {fileID: 1739336026}
+  gold: {r: 1, g: 0.86, b: 0.22, a: 1}
+  ringGlow: {r: 1, g: 0.55, b: 0.12, a: 1}
+  fill: {r: 0.6, g: 0.4, b: 0.03, a: 0.4}
+  ringInterval: 2.4
+  swingAngle: 18
+  swingFrequency: 1.6
+  damping: 1.8
 --- !u!4 &7215792046200516387
 Transform:
   m_ObjectHideFlags: 0
