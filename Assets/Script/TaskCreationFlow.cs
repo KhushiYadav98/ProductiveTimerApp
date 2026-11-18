@@ -26,6 +26,8 @@ public class TaskCreationFlow : MonoBehaviour
     [SerializeField] private Button timerOkButton;
     [Tooltip("Countdown on the clock tower (and the train's lap), started by the timer's OK.")]
     [SerializeField] private TownTaskTimer townTimer;
+    [Tooltip("Optional logo intro (logo pop-up + clouds) played before the 'Create task' panel appears.")]
+    [SerializeField] private LogoIntro logoIntro;
 
     [Header("Placement")]
     [Tooltip("Distance in front of the head, in meters. Keep it within arm's reach so the buttons can be poked.")]
@@ -93,9 +95,19 @@ public class TaskCreationFlow : MonoBehaviour
         if (canvas == null)
             return;
 
-        SetPanel(createTaskPanel);
         canvas.gameObject.SetActive(true);
         PlaceInFrontOfUser();
+
+        if (logoIntro != null)
+        {
+            // Logo first, then the panel pops in.
+            SetPanel(null);
+            logoIntro.Play(head, createTaskPanel != null ? createTaskPanel.transform : null, () => SetPanel(createTaskPanel));
+        }
+        else
+        {
+            SetPanel(createTaskPanel);
+        }
     }
 
     public void ShowNamePanel()

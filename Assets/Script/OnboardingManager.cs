@@ -18,6 +18,8 @@ public class OnboardingManager : MonoBehaviour
     [SerializeField] private float townDiameter = 0.25f;
     [SerializeField] private float townSpinSpeed = 10f;
     [SerializeField] private float townBobAmplitude = 0.01f;
+    [Tooltip("How quickly the mini town levels itself (removes tilt) after it's let go. Higher = faster.")]
+    [SerializeField] private float townLevelSpeed = 10f;
 
     [Header("Boundary Ring")]
     [Tooltip("Ring radius at the town's starting scale; it grows and shrinks in proportion to the town.")]
@@ -187,6 +189,20 @@ public class OnboardingManager : MonoBehaviour
             if (wasGrabbed)
                 townBasePosition = town.position;
             town.Rotate(0f, townSpinSpeed * Time.deltaTime, 0f, Space.World);
+
+            // Level out any tilt left from the grab (keep the facing, drop pitch/roll), smoothly.
+            if (Vector3.Angle(town.up, Vector3.up) > 0.01f)
+            {
+                Vector3 facing = Vector3.ProjectOnPlane(town.forward, Vector3.up);
+                if (facing.sqrMagnitude < 0.0001f)
+                    facing = Vector3.ProjectOnPlane(-town.up, Vector3.up); // tipped fully on its side
+                if (facing.sqrMagnitude > 0.0001f)
+                {
+                    Quaternion upright = Quaternion.LookRotation(facing, Vector3.up);
+                    town.rotation = Quaternion.Slerp(town.rotation, upright, 1f - Mathf.Exp(-townLevelSpeed * Time.deltaTime));
+                }
+            }
+
             town.position = townBasePosition + Vector3.up * Mathf.Sin(Time.time * 1.5f) * townBobAmplitude;
         }
 

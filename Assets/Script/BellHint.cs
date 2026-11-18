@@ -37,6 +37,9 @@ public class BellHint : MonoBehaviour
     public bool IsHinting { get; private set; }
     public bool IsCelebrating { get; private set; }
 
+    /// <summary>Raised at the start of each ring of the hint (e.g. for a soft ding).</summary>
+    public event System.Action Rang;
+
     private static readonly int EdgeColorId = Shader.PropertyToID("_EdgeColor");
     private static readonly int RimColorId = Shader.PropertyToID("_RimColor");
     private static readonly int FillColorId = Shader.PropertyToID("_FillColor");
@@ -52,6 +55,7 @@ public class BellHint : MonoBehaviour
     private Vector3 hingeLocal;     // top of the bell, in its own space
     private Vector3 swingAxisLocal; // horizontal axis in the parent's space
     private float startTime;
+    private int lastRing = -1;
     private float celebrateStart;
 
     private void Awake()
@@ -103,6 +107,7 @@ public class BellHint : MonoBehaviour
 
         IsHinting = true;
         startTime = Time.time;
+        lastRing = -1;
         CaptureRest();
         Debug.Log("[BellHint] Bell hint started");
     }
@@ -159,6 +164,12 @@ public class BellHint : MonoBehaviour
             return;
 
         // Each ring: a damped swing that starts at rest, then quiet until the next ring.
+        int ring = Mathf.FloorToInt((Time.time - startTime) / ringInterval);
+        if (ring != lastRing)
+        {
+            lastRing = ring;
+            Rang?.Invoke();
+        }
         float t = Mathf.Repeat(Time.time - startTime, ringInterval);
         float envelope = Mathf.Exp(-t * damping);
         float angle = swingAngle * Mathf.Sin(t * swingFrequency * Mathf.PI * 2f) * envelope;

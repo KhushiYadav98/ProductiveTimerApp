@@ -29,7 +29,15 @@ public class TownBuildReveal : MonoBehaviour
     [ColorUsage(false, true)]
     [SerializeField] private Color edgeColor = new Color(1.6f, 0.95f, 0.25f, 1f);
 
+    public enum RevealPhase { None, Sky, Town }
+
     public bool IsRevealing => routine != null;
+    /// <summary>What's being revealed right now (for sound/FX hooks).</summary>
+    public RevealPhase Phase { get; private set; }
+    /// <summary>0..1 progress of the current phase.</summary>
+    public float Progress { get; private set; }
+    /// <summary>World height of the town's build line during the Town phase.</summary>
+    public float BuildLineY { get; private set; }
     public float Duration => duration;
 
     private static readonly int BuildRevealYId = Shader.PropertyToID("_BuildRevealY");
@@ -143,23 +151,29 @@ public class TownBuildReveal : MonoBehaviour
             swapped.Add((sky, skyOriginals));
             skyCopy = skyCopies;
 
+            Phase = RevealPhase.Sky;
             for (float t = 0f; t < 1f; t += Time.deltaTime / Mathf.Max(skyDuration, 0.01f))
             {
+                Progress = t;
                 foreach (var m in skyCopies)
                     if (m != null)
                         m.SetFloat(SkyRevealId, t);
                 yield return null;
             }
             RestoreSky();
+            Phase = RevealPhase.None;
             yield return new WaitForSeconds(skyToTownDelay);
         }
 
         // Step 2: the town builds from the ground up.
+        Phase = RevealPhase.Town;
         for (float t = 0f; t < 1f; t += Time.deltaTime / Mathf.Max(duration, 0.01f))
         {
             // Ease in-out: a quick foundation, steady build, gentle finish at the rooftops.
             float k = t * t * (3f - 2f * t);
             float lineY = Mathf.Lerp(from, to, k);
+            Progress = t;
+            BuildLineY = lineY;
             Shader.SetGlobalFloat(BuildRevealYId, lineY);
             for (int i = hidden.Count - 1; i >= 0; i--)
             {
@@ -256,6 +270,8 @@ public class TownBuildReveal : MonoBehaviour
 
     private void Restore()
     {
+        Phase = RevealPhase.None;
+        Progress = 0f;
         RestoreSky();
         foreach (var h in hidden)
             if (h != null)

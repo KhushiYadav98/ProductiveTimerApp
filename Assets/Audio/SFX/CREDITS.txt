@@ -1,0 +1,25 @@
+Sound effects - all CC0 (public domain, free for personal and commercial use, no attribution required)
+
+MiniTown_Pop.wav   = drop_002.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Scale_Up.wav       = maximize_003.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Scale_Down.wav     = minimize_003.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+                     https://kenney.nl/assets/interface-sounds
+Bell_Ring.wav      = bell.wav         - "Correct Bell" by Fupi, CC0
+                     https://opengameart.org/content/correct-bell
+Bell_HintDing.wav  = pleasing-bell.wav - "Pleasing Bell Sound Effect" by Spring Spring, CC0
+                     https://opengameart.org/content/pleasing-bell-sound-effect
+
+Reveal/Sky_Tink_*.wav       = glass_002/003/005/006.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Reveal/Build_Complete.wav   = confirmation_002.wav      - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Reveal/Build_Knock_1..2.ogg = wood_hammer_01/02.ogg     - "100 CC0 metal and wood SFX" by rubberduck, CC0
+Reveal/Build_Knock_3.ogg    = hammer_01.ogg             - "100 CC0 metal and wood SFX" by rubberduck, CC0
+Reveal/Build_Knock_4..5.ogg = wood_hit_01/02.ogg        - "100 CC0 metal and wood SFX" by rubberduck, CC0
+                              https://opengameart.org/content/100-cc0-metal-and-wood-sfx
+
+Logo/Logo_Pop.wav       = drop_004.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Logo/Logo_Out.wav       = minimize_004.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Logo/Panel_Appear.wav   = open_002.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Logo/Cloud_Whoosh.wav   = air_move.wav     - "Air Woosh Move" by Almitory, CC0
+                          https://opengameart.org/content/air-woosh-move
+Logo/Cloud_WindLoop.ogg = wind woosh loop.ogg - "wind whoosh loop" by SketchMan3, CC0
+                          https://opengameart.org/content/wind-whoosh-loop
