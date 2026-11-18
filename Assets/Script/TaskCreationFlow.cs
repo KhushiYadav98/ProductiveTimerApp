@@ -28,6 +28,9 @@ public class TaskCreationFlow : MonoBehaviour
     [SerializeField] private TownTaskTimer townTimer;
     [Tooltip("Optional logo intro (logo pop-up + clouds) played before the 'Create task' panel appears.")]
     [SerializeField] private LogoIntro logoIntro;
+    [Tooltip("Runs the focus session (focus message, break, 'did you finish?') once the timer is set. " +
+             "Empty: the timer's OK just starts the countdown.")]
+    [SerializeField] private FocusSession session;
 
     [Header("Placement")]
     [Tooltip("Distance in front of the head, in meters. Keep it within arm's reach so the buttons can be poked.")]
@@ -46,6 +49,10 @@ public class TaskCreationFlow : MonoBehaviour
     public string TaskTitle { get; private set; }
 
     private Transform head;
+    private readonly System.Collections.Generic.List<GameObject> extraPanels = new System.Collections.Generic.List<GameObject>();
+    private readonly System.Collections.Generic.Dictionary<Transform, Vector3> restScales =
+        new System.Collections.Generic.Dictionary<Transform, Vector3>();
+    private Coroutine popRoutine;
 
     private void Awake()
     {
@@ -155,9 +162,67 @@ public class TaskCreationFlow : MonoBehaviour
         // The task is set: put the UI away and start the countdown on the clock tower.
         if (keyboard != null)
             keyboard.Hide();
+        if (session != null)
+        {
+            session.Begin(minutes * 60f);
+            return;
+        }
         canvas.gameObject.SetActive(false);
         if (townTimer != null)
             townTimer.StartCountdown(minutes * 60f);
+    }
+
+    /// <summary>Lets other flows (e.g. FocusSession) show their own panels on this canvas; they're hidden with the rest.</summary>
+    public void RegisterPanels(params GameObject[] panels)
+    {
+        foreach (var p in panels)
+            if (p != null && !extraPanels.Contains(p))
+            {
+                extraPanels.Add(p);
+                p.SetActive(false);
+            }
+    }
+
+    /// <summary>Shows only <paramref name="panel"/>, in front of the user, with a small pop.</summary>
+    public void ShowOnly(GameObject panel)
+    {
+        if (canvas == null)
+            return;
+        if (keyboard != null)
+            keyboard.Hide();
+        canvas.gameObject.SetActive(true);
+        SetPanel(panel);
+        PlaceInFrontOfUser();
+        if (panel != null)
+        {
+            if (popRoutine != null)
+                StopCoroutine(popRoutine);
+            popRoutine = StartCoroutine(Pop(panel.transform));
+        }
+    }
+
+    /// <summary>Hides the whole canvas.</summary>
+    public void HideAll()
+    {
+        if (keyboard != null)
+            keyboard.Hide();
+        SetPanel(null);
+        if (canvas != null)
+            canvas.gameObject.SetActive(false);
+    }
+
+    private System.Collections.IEnumerator Pop(Transform t)
+    {
+        if (!restScales.TryGetValue(t, out var rest))
+            restScales[t] = rest = t.localScale;
+        for (float x = 0f; x < 1f; x += Time.deltaTime / 0.3f)
+        {
+            float u = x - 1f;
+            t.localScale = rest * (1f + 2.70158f * u * u * u + 1.70158f * u * u); // ease-out-back
+            yield return null;
+        }
+        t.localScale = rest;
+        popRoutine = null;
     }
 
     private void SetPanel(GameObject panel)
@@ -168,6 +233,9 @@ public class TaskCreationFlow : MonoBehaviour
             nameTaskPanel.SetActive(panel == nameTaskPanel);
         if (settingTimerPanel != null)
             settingTimerPanel.SetActive(panel == settingTimerPanel);
+        foreach (var p in extraPanels)
+            if (p != null)
+                p.SetActive(p == panel);
     }
 
     private void PlaceInFrontOfUser()

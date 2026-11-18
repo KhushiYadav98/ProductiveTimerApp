@@ -23,3 +23,11 @@ Logo/Cloud_Whoosh.wav   = air_move.wav     - "Air Woosh Move" by Almitory, CC0
                           https://opengameart.org/content/air-woosh-move
 Logo/Cloud_WindLoop.ogg = wind woosh loop.ogg - "wind whoosh loop" by SketchMan3, CC0
                           https://opengameart.org/content/wind-whoosh-loop
+
+UI/Button_Click.wav            = click_002.wav        - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+UI/Key_Tick.wav                = tick_002.wav         - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Session/Focus_Start.wav        = confirmation_001.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Session/Break_Over.wav         = maximize_005.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Session/Task_Finished.wav      = question_002.wav     - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Session/Building_Completed.wav = confirmation_003.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+Session/Break_Start.wav        = pleasing-bell.wav    - "Pleasing Bell Sound Effect" by Spring Spring, CC0

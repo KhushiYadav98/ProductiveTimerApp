@@ -34,8 +34,11 @@ public class TownTaskTimer : MonoBehaviour
     [SerializeField] private Transform station;
     [Tooltip("Engine smoke; puffs faster while the train drives.")]
     [SerializeField] private SmokePuffs smoke;
-    [Tooltip("Building constructed while the timer runs and completed when it ends.")]
+    [Tooltip("Building constructed while the timer runs (paused with the timer; completed by the session's 'Yes').")]
     [SerializeField] private ConstructionProject construction;
+    [Tooltip("Complete the building as soon as the countdown ends. Off: something else completes it " +
+             "(e.g. FocusSession, after the user confirms they finished the task).")]
+    [SerializeField] private bool completeConstructionOnFinish = false;
     [Tooltip("Parks the train at the station when the bell shows the town.")]
     [SerializeField] private OnboardingManager onboarding;
 
@@ -43,7 +46,11 @@ public class TownTaskTimer : MonoBehaviour
     public UnityEvent onFinished;
 
     public bool IsRunning { get; private set; }
-    public float RemainingSeconds => IsRunning ? Mathf.Max(0f, endTime - Time.time) : 0f;
+    /// <summary>True while a running countdown is on hold (e.g. a break): train and construction stop too.</summary>
+    public bool IsPaused { get; private set; }
+    /// <summary>Seconds of countdown done so far (not counting pauses).</summary>
+    public float ElapsedSeconds => elapsed;
+    public float RemainingSeconds => IsRunning ? Mathf.Max(0f, duration - elapsed) : 0f;
 
     private const float CanvasWidth = 952f; // TimerBkg's pixel size, used as the canvas's units
     private const float CanvasHeight = 420f;
@@ -56,7 +63,7 @@ public class TownTaskTimer : MonoBehaviour
     private float displayAnimationScale = 1f; // pop-in / pulse, on top of the distance-based size
 
     private float duration;
-    private float endTime;
+    private float elapsed;
     private bool trainStored;
     private Vector3 trainStartPosition;
     private Quaternion trainStartRotation;
@@ -91,8 +98,9 @@ public class TownTaskTimer : MonoBehaviour
             return;
 
         duration = seconds;
-        endTime = Time.time + seconds;
+        elapsed = 0f;
         IsRunning = true;
+        IsPaused = false;
 
         BuildDisplay();
         display.gameObject.SetActive(true);
@@ -110,10 +118,11 @@ public class TownTaskTimer : MonoBehaviour
 
     private void Update()
     {
-        if (!IsRunning)
+        if (!IsRunning || IsPaused)
             return;
 
-        float remaining = endTime - Time.time;
+        elapsed += Time.deltaTime;
+        float remaining = duration - elapsed;
         if (remaining <= 0f)
         {
             Finish();
@@ -121,7 +130,33 @@ public class TownTaskTimer : MonoBehaviour
         }
 
         SetDigits(Mathf.CeilToInt(remaining), true);
-        PlaceTrain(LapProgress(duration - remaining));
+        PlaceTrain(LapProgress(elapsed));
+    }
+
+    /// <summary>Holds the countdown: the timer, the train and the construction all stop.</summary>
+    public void Pause()
+    {
+        if (!IsRunning || IsPaused)
+            return;
+        IsPaused = true;
+        if (smoke != null)
+            smoke.Moving = false;
+        if (construction != null)
+            construction.Pause();
+        Debug.Log("[TownTimer] Paused");
+    }
+
+    /// <summary>Continues a paused countdown.</summary>
+    public void Resume()
+    {
+        if (!IsRunning || !IsPaused)
+            return;
+        IsPaused = false;
+        if (smoke != null)
+            smoke.Moving = true;
+        if (construction != null)
+            construction.Resume();
+        Debug.Log("[TownTimer] Resumed");
     }
 
     private void LateUpdate()
@@ -133,12 +168,18 @@ public class TownTaskTimer : MonoBehaviour
     private void Finish()
     {
         IsRunning = false;
+        IsPaused = false;
         SetDigits(0, true);
         PlaceTrain(1f);
         if (smoke != null)
             smoke.Moving = false;
         if (construction != null)
-            construction.Complete();
+        {
+            if (completeConstructionOnFinish)
+                construction.Complete();
+            else
+                construction.Pause(); // work stops; the building is finished later
+        }
         if (display != null)
             StartCoroutine(Pulse(display.transform));
         Debug.Log("[TownTimer] Countdown finished");

@@ -68,6 +68,32 @@ public class ConstructionProject : MonoBehaviour
         dust.Play();
     }
 
+    public bool IsPaused { get; private set; }
+
+    /// <summary>Stops the work for now (e.g. a break): the animation holds and the dust settles.</summary>
+    public void Pause()
+    {
+        if (!IsBuilding || IsPaused)
+            return;
+        IsPaused = true;
+        if (siteAnimator != null)
+            siteAnimator.speed = 0f;
+        if (dust != null)
+            dust.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+    }
+
+    /// <summary>Continues the work after a pause.</summary>
+    public void Resume()
+    {
+        if (!IsBuilding || !IsPaused)
+            return;
+        IsPaused = false;
+        if (siteAnimator != null)
+            siteAnimator.speed = 1f;
+        if (dust != null)
+            dust.Play();
+    }
+
     /// <summary>Finishes construction: poof, swap the site for the building with a pop, sparkles and confetti.</summary>
     public void Complete()
     {
@@ -75,6 +101,7 @@ public class ConstructionProject : MonoBehaviour
             return;
         IsComplete = true;
         IsBuilding = false;
+        IsPaused = false;
         StartCoroutine(CompleteSequence());
     }
 
