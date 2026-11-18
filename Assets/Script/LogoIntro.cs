@@ -33,7 +33,10 @@ public class LogoIntro : MonoBehaviour
     [SerializeField] private Vector2 cloudSize = new Vector2(0.45f, 1.1f);
     [Tooltip("Outward speed away from the user (m/s) and orbit speed around the user (rad/s).")]
     [SerializeField] private Vector2 cloudOutward = new Vector2(0.35f, 0.8f);
+    [Tooltip("Orbit speed range (rad/s); each cloud randomly goes left or right around the user.")]
     [SerializeField] private Vector2 cloudOrbit = new Vector2(0.2f, 0.55f);
+    [Tooltip("Upward speed range (m/s), so clouds also rise up around the sky.")]
+    [SerializeField] private Vector2 cloudRise = new Vector2(0.05f, 0.45f);
     [SerializeField] private Color cloudColorA = new Color(1f, 1f, 1f, 1f);
     [SerializeField] private Color cloudColorB = new Color(0.9f, 0.95f, 1f, 0.95f);
 
@@ -235,7 +238,7 @@ public class LogoIntro : MonoBehaviour
         main.scalingMode = ParticleSystemScalingMode.Shape;
         main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
         main.startLifetime = new ParticleSystem.MinMaxCurve(cloudLifetime.x, cloudLifetime.y);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.2f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.45f); // scattered in all directions from the logo
         main.startSize = new ParticleSystem.MinMaxCurve(cloudSize.x, cloudSize.y);
         main.startColor = new ParticleSystem.MinMaxGradient(cloudColorA, cloudColorB);
         main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
@@ -254,8 +257,9 @@ public class LogoIntro : MonoBehaviour
         velocity.enabled = true;
         velocity.space = ParticleSystemSimulationSpace.Local;
         velocity.radial = new ParticleSystem.MinMaxCurve(cloudOutward.x, cloudOutward.y);
-        velocity.orbitalY = new ParticleSystem.MinMaxCurve(cloudOrbit.x, cloudOrbit.y);
-        velocity.y = new ParticleSystem.MinMaxCurve(0.02f, 0.12f);
+        // Each cloud orbits left or right around the user at a random speed (some go nearly straight out/up).
+        velocity.orbitalY = new ParticleSystem.MinMaxCurve(-cloudOrbit.y, cloudOrbit.y);
+        velocity.y = new ParticleSystem.MinMaxCurve(cloudRise.x, cloudRise.y);
         // Radial/orbital need the other axes set in the same mode.
         velocity.x = new ParticleSystem.MinMaxCurve(0f, 0f);
         velocity.z = new ParticleSystem.MinMaxCurve(0f, 0f);

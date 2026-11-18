@@ -53,8 +53,13 @@ public class OnboardingSounds : MonoBehaviour
     [SerializeField] private Vector2 skyPitch = new Vector2(0.85f, 1.45f);
     [Tooltip("How far from the user the sky tinks come from, in meters.")]
     [SerializeField] private float skyDistance = 6f;
-    [Tooltip("Seconds between knocks at the start and in the middle of the build.")]
-    [SerializeField] private Vector2 buildInterval = new Vector2(0.24f, 0.11f);
+    [Tooltip("Shortest time between two hammer knocks, in seconds.")]
+    [SerializeField] private float minKnockGap = 0.06f;
+    [Tooltip("Pop for small props popping up (empty = the mini town pop).")]
+    [SerializeField] private AudioClip propPop;
+    [Range(0f, 1f)] [SerializeField] private float propPopVolume = 0.3f;
+    [Tooltip("Shortest time between two prop pops, in seconds.")]
+    [SerializeField] private float minPropPopGap = 0.09f;
     [Tooltip("Pitch of the knocks at the start and the end (rises as the town goes up).")]
     [SerializeField] private Vector2 buildPitch = new Vector2(0.85f, 1.2f);
 
@@ -67,6 +72,8 @@ public class OnboardingSounds : MonoBehaviour
     private float lastStepScale;
     private float lastScaleSoundTime = -1f;
     private float nextRevealSound;
+    private float lastKnockTime = -1f;
+    private float lastPropPopTime = -1f;
 
     private void Awake()
     {
@@ -105,6 +112,12 @@ public class OnboardingSounds : MonoBehaviour
         }
         if (bellHint != null)
             bellHint.Rang += OnHintRang;
+        if (buildReveal != null)
+        {
+            buildReveal.Hammer += OnHammer;
+            buildReveal.PieceStarted += OnPieceStarted;
+            buildReveal.BuildingFinished += OnBuildingFinished;
+        }
     }
 
     private void OnDisable()
@@ -117,6 +130,12 @@ public class OnboardingSounds : MonoBehaviour
         }
         if (bellHint != null)
             bellHint.Rang -= OnHintRang;
+        if (buildReveal != null)
+        {
+            buildReveal.Hammer -= OnHammer;
+            buildReveal.PieceStarted -= OnPieceStarted;
+            buildReveal.BuildingFinished -= OnBuildingFinished;
+        }
     }
 
     private void OnSpawned()
@@ -172,7 +191,7 @@ public class OnboardingSounds : MonoBehaviour
 
     private void UpdateRevealSounds()
     {
-        if (buildReveal == null || buildReveal.Phase == TownBuildReveal.RevealPhase.None)
+        if (buildReveal == null || buildReveal.Phase != TownBuildReveal.RevealPhase.Sky)
         {
             nextRevealSound = 0f;
             return;
@@ -192,16 +211,37 @@ public class OnboardingSounds : MonoBehaviour
                 Mathf.Lerp(skyPitch.x, skyPitch.y, p) * Random.Range(0.94f, 1.06f));
             nextRevealSound = Time.time + Mathf.Lerp(skyInterval.x, skyInterval.y, p) * Random.Range(0.7f, 1.3f);
         }
-        else
+        // The town's construction sounds come from its pieces (see OnHammer / OnPieceStarted / OnBuildingFinished).
+    }
+
+    // A hammer blow on a building under construction, right where it's being built.
+    private void OnHammer(Vector3 at, float size)
+    {
+        if (Time.time - lastKnockTime < minKnockGap)
+            return;
+        lastKnockTime = Time.time;
+        Play(Pick(buildKnocks), at, buildVolume * Random.Range(0.7f, 1f),
+            Mathf.Lerp(buildPitch.x, buildPitch.y, buildReveal.Progress) * Random.Range(0.92f, 1.08f));
+    }
+
+    // Big buildings start with a knock; small props pop up with a soft pop (rate-limited: there are hundreds).
+    private void OnPieceStarted(Vector3 at, float size, bool big)
+    {
+        if (big)
         {
-            // Knocks around the user at the build line's height; busiest mid-build, rising in pitch.
-            float radius = Mathf.Max(onboarding.RingRadius, 1f) * Random.Range(1.2f, 2.5f);
-            Vector3 at = new Vector3(head.position.x, buildReveal.BuildLineY, head.position.z) + around * radius;
-            Play(Pick(buildKnocks), at, buildVolume * Random.Range(0.6f, 1f),
-                Mathf.Lerp(buildPitch.x, buildPitch.y, p) * Random.Range(0.92f, 1.08f));
-            float busy = 1f - Mathf.Abs(p - 0.5f) * 2f; // 0 at the ends, 1 in the middle
-            nextRevealSound = Time.time + Mathf.Lerp(buildInterval.x, buildInterval.y, busy) * Random.Range(0.6f, 1.4f);
+            OnHammer(at, size);
+            return;
         }
+        if (Time.time - lastPropPopTime < minPropPopGap)
+            return;
+        lastPropPopTime = Time.time;
+        Play(propPop != null ? propPop : townAppear, at, propPopVolume * Random.Range(0.6f, 1f), Random.Range(1.1f, 1.5f));
+    }
+
+    // A building is complete: a heavier, lower knock.
+    private void OnBuildingFinished(Vector3 at, float size)
+    {
+        Play(Pick(buildKnocks), at, Mathf.Min(1f, buildVolume * 1.3f), Random.Range(0.7f, 0.8f));
     }
 
     private static AudioClip Pick(AudioClip[] clips)

@@ -5736,6 +5736,7 @@ MonoBehaviour:
   cloudSize: {x: 0.45, y: 1.1}
   cloudOutward: {x: 0.35, y: 0.8}
   cloudOrbit: {x: 0.2, y: 0.55}
+  cloudRise: {x: 0.05, y: 0.45}
   cloudColorA: {r: 1, g: 1, b: 1, a: 1}
   cloudColorB: {r: 0.9, g: 0.95, b: 1, a: 0.95}
   logoPop: {fileID: 8300000, guid: 49280625e82e24340818b4b28578525f, type: 3}
@@ -6710,7 +6711,10 @@ MonoBehaviour:
   skyInterval: {x: 0.2, y: 0.06}
   skyPitch: {x: 0.85, y: 1.45}
   skyDistance: 6
-  buildInterval: {x: 0.24, y: 0.11}
+  minKnockGap: 0.06
+  propPop: {fileID: 0}
+  propPopVolume: 0.3
+  minPropPopGap: 0.09
   buildPitch: {x: 0.85, y: 1.2}
 --- !u!4 &2142248590
 Transform:
@@ -28670,14 +28674,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TownBuildReveal
   revealTemplate: {fileID: 2100000, guid: 74ed2f097bbb0c64c83f44d29b1a0a3c, type: 2}
-  duration: 4
   exclude: []
   sky: {fileID: 6536931408632936188}
   skyTemplate: {fileID: 2100000, guid: 20c8db022e4191e4398f950c75bb31b0, type: 2}
   skyDuration: 2.5
   skyToTownDelay: 0.15
+  piecesRoot: {fileID: 370723089}
+  foundationTime: 1
+  duration: 3.5
+  bigBuildTime: 1.4
+  smallPopTime: 0.45
+  bigMinRenderers: 7
+  bigMinHeightFraction: 0.2
   edgeBandFraction: 0.08
   edgeColor: {r: 1.6, g: 0.95, b: 0.25, a: 1}
+  dustMaterial: {fileID: 2100000, guid: e3f3d4e0fcf6c9249a16dd521bd3db7a, type: 2}
+  dustColorA: {r: 0.86, g: 0.78, b: 0.64, a: 0.75}
+  dustColorB: {r: 0.72, g: 0.65, b: 0.55, a: 0.65}
+  bigDustRate: 30
 --- !u!1 &919132148179725133
 GameObject:
   m_ObjectHideFlags: 0

@@ -13,6 +13,7 @@ Shader "ProductivityTown/Build Reveal"
         _EmissionMap ("Emission Map", 2D) = "white" {}
         [HDR] _RevealEdgeColor ("Build Edge Color", Color) = (2.2, 1.6, 0.6, 1)
         _RevealBand ("Build Edge Band (meters)", Float) = 0.12
+        _UnitRevealY ("Per-Object Build Line (world Y, set per renderer)", Float) = 100000
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
         [ToggleOff] _SpecularHighlights ("Specular Highlights", Float) = 1
         [ToggleOff] _EnvironmentReflections ("Environment Reflections", Float) = 1
@@ -33,10 +34,17 @@ Shader "ProductivityTown/Build Reveal"
             half4 _EmissionColor;
             half4 _RevealEdgeColor;
             float _RevealBand;
+            float _UnitRevealY;
         CBUFFER_END
 
-        // Set by TownBuildReveal (global): world height of the build line.
+        // Set by TownBuildReveal (global): world height of the build line. Each renderer can also have its own
+        // line (_UnitRevealY, per object); the lower of the two applies.
         float _BuildRevealY;
+
+        float BuildLineY()
+        {
+            return min(_BuildRevealY, _UnitRevealY);
+        }
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
@@ -104,7 +112,7 @@ Shader "ProductivityTown/Build Reveal"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
 
                 // Cut above the build line; glow in the band just below it.
-                float below = _BuildRevealY - input.positionWS.y;
+                float below = BuildLineY() - input.positionWS.y;
                 clip(below);
                 float edge = 1.0 - saturate(below / max(_RevealBand, 1e-4));
                 edge *= edge;
@@ -197,7 +205,7 @@ Shader "ProductivityTown/Build Reveal"
 
             half4 frag(Varyings input) : SV_Target
             {
-                clip(_BuildRevealY - input.positionWS.y);
+                clip(BuildLineY() - input.positionWS.y);
                 return 0;
             }
             ENDHLSL
@@ -242,7 +250,7 @@ Shader "ProductivityTown/Build Reveal"
 
             half frag(Varyings input) : SV_Target
             {
-                clip(_BuildRevealY - input.positionWS.y);
+                clip(BuildLineY() - input.positionWS.y);
                 return input.positionCS.z;
             }
             ENDHLSL
