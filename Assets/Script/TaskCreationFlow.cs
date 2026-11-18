@@ -21,6 +21,8 @@ public class TaskCreationFlow : MonoBehaviour
     [SerializeField] private GameObject selectScreenTaskPanel;
     [SerializeField] private Button selectScreenYesButton;
     [SerializeField] private Button selectScreenNoButton;
+    [Tooltip("Screen-share step shown for Yes; once the screen is live it continues to naming the task.")]
+    [SerializeField] private ScreenSharePanel screenShare;
 
     [Header("Controls")]
     [SerializeField] private Button createTaskButton;
@@ -73,7 +75,7 @@ public class TaskCreationFlow : MonoBehaviour
         if (selectScreenNoButton != null)
             selectScreenNoButton.onClick.AddListener(ShowNamePanel);
         if (selectScreenYesButton != null)
-            selectScreenYesButton.onClick.AddListener(() => Debug.Log("[TaskCreation] Screen connection not set up yet."));
+            selectScreenYesButton.onClick.AddListener(ShowScreenShare);
         RegisterPanels(selectScreenTaskPanel);
         if (okButton != null)
             okButton.onClick.AddListener(SubmitTitle);
@@ -138,6 +140,25 @@ public class TaskCreationFlow : MonoBehaviour
             ShowOnly(nameTaskPanel);
             ShowNamePanel();
         }
+    }
+
+    // Yes: connect the computer's screen first (the task panels step aside meanwhile).
+    private void ShowScreenShare()
+    {
+        if (screenShare == null)
+        {
+            ContinueToTaskName();
+            return;
+        }
+        HideAll();
+        screenShare.Show();
+    }
+
+    /// <summary>Goes on to naming the task (e.g. once the screen is shared), in front of the user.</summary>
+    public void ContinueToTaskName()
+    {
+        ShowOnly(nameTaskPanel);
+        ShowNamePanel();
     }
 
     public void ShowNamePanel()

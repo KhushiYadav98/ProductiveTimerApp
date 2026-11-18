@@ -19,6 +19,11 @@ public class PokeKeyboard : MonoBehaviour
     [SerializeField] private Transform anchor;
     [Tooltip("Tilt around the top edge, in degrees. Positive brings the bottom rows toward the user.")]
     [SerializeField] private float tiltAngle = 45f;
+    [Tooltip("Number pad (1-9, Del, 0, Done) instead of the full keyboard, e.g. for entering a code.")]
+    [SerializeField] private bool numbersOnly = false;
+    [Tooltip("If the keyboard has a Grabbable: once the user grabs and places it, it stays there instead of following " +
+             "its anchor.")]
+    [SerializeField] private bool stayWhereGrabbed = true;
 
     [Header("Layout (canvas units)")]
     [SerializeField] private float keySize = 36f;
@@ -71,15 +76,23 @@ public class PokeKeyboard : MonoBehaviour
     private float topWidth, bottomWidth, height;
 
     public bool IsShown => gameObject.activeSelf;
+    /// <summary>True once the user has grabbed and moved the keyboard (it no longer follows its anchor).</summary>
+    public bool IsUserPlaced { get; private set; }
+
+    private Oculus.Interaction.Grabbable grabbable;
 
     private void Awake()
     {
+        grabbable = GetComponent<Oculus.Interaction.Grabbable>();
         Build();
     }
 
     private void LateUpdate()
     {
-        Follow();
+        if (stayWhereGrabbed && grabbable != null && grabbable.SelectingPoints != null && grabbable.SelectingPoints.Count > 0)
+            IsUserPlaced = true;
+        if (!IsUserPlaced)
+            Follow();
     }
 
     public void Show(TMP_InputField field)
@@ -148,28 +161,53 @@ public class PokeKeyboard : MonoBehaviour
             return;
         built = true;
 
-        var rows = new List<List<KeySpec>>
+        List<List<KeySpec>> rows;
+        int topKeys;
+        float sideSlant = slant;
+        if (numbersOnly)
         {
-            Letters("1234567890"),
-            Letters("qwertyuiop"),
-            Letters("asdfghjkl"),
-        };
-        var row3 = new List<KeySpec> { Action("Shift", () => SetShift(!shift), -1f, Look.Key) };
-        row3.AddRange(Letters("zxcvbnm"));
-        row3.Add(Action("Del", Backspace, -1f, Look.Key));
-        rows.Add(row3);
-        rows.Add(new List<KeySpec>
+            // Phone-style number pad.
+            rows = new List<List<KeySpec>>
+            {
+                Letters("123"),
+                Letters("456"),
+                Letters("789"),
+                new List<KeySpec>
+                {
+                    Action("Del", Backspace, keySize, Look.Key),
+                    Letter('0'),
+                    Action("Done", Done, keySize, Look.Accent),
+                },
+            };
+            topKeys = 3;
+            sideSlant = slant * 0.3f;
+        }
+        else
         {
-            Letter(','), Letter('-'),
-            new KeySpec { Label = "", Char = ' ', Width = -1f, Look = Look.Space },
-            Letter('.'),
-            Action("Done", Done, keySize * 2.5f + gap * 1.5f, Look.Accent),
-        });
+            rows = new List<List<KeySpec>>
+            {
+                Letters("1234567890"),
+                Letters("qwertyuiop"),
+                Letters("asdfghjkl"),
+            };
+            var row3 = new List<KeySpec> { Action("Shift", () => SetShift(!shift), -1f, Look.Key) };
+            row3.AddRange(Letters("zxcvbnm"));
+            row3.Add(Action("Del", Backspace, -1f, Look.Key));
+            rows.Add(row3);
+            rows.Add(new List<KeySpec>
+            {
+                Letter(','), Letter('-'),
+                new KeySpec { Label = "", Char = ' ', Width = -1f, Look = Look.Space },
+                Letter('.'),
+                Action("Done", Done, keySize * 2.5f + gap * 1.5f, Look.Accent),
+            });
+            topKeys = 10;
+        }
 
         // Base: a trapezoid whose top fits the widest top row and whose sides slant outward.
-        float topRow = 10 * keySize + 9 * gap;
+        float topRow = topKeys * keySize + (topKeys - 1) * gap;
         topWidth = topRow + 2 * padding;
-        bottomWidth = topWidth + 2 * slant;
+        bottomWidth = topWidth + 2 * sideSlant;
         height = rows.Count * keySize + (rows.Count - 1) * gap + 2 * padding + 2f;
 
         var rt = (RectTransform)transform;
@@ -180,6 +218,14 @@ public class PokeKeyboard : MonoBehaviour
 
         for (int r = 0; r < rows.Count; r++)
             BuildRow(rows[r], r);
+
+        // Grab area: the whole keyboard (pivot at its top-center).
+        var box = GetComponent<BoxCollider>();
+        if (box != null)
+        {
+            box.center = new Vector3(0f, -height * 0.5f, 0f);
+            box.size = new Vector3(bottomWidth, height, 30f);
+        }
     }
 
     private List<KeySpec> Letters(string chars)
