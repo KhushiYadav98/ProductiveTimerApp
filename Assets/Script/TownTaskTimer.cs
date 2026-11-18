@@ -5,8 +5,8 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 
 // The task countdown in the life-size town: a timer display floats above the clock tower (always facing the user)
-// and counts down, while the train runs one full lap of the circular track, arriving back at its starting spot
-// exactly when the timer reaches 00:00.
+// and counts down, while the train runs one full lap of the circular track from the station, arriving back at the
+// station exactly when the timer reaches 00:00.
 public class TownTaskTimer : MonoBehaviour
 {
     [Header("Clock tower display")]
@@ -29,6 +29,13 @@ public class TownTaskTimer : MonoBehaviour
     [SerializeField] private Renderer track;
     [Tooltip("Seconds to speed up at the start and slow down at the end of the lap.")]
     [SerializeField] private float trainEaseSeconds = 2f;
+    [Tooltip("The train waits here (moved along the track to line up with it) and starts/ends its lap here " +
+             "(e.g. the station's Sta_Platform).")]
+    [SerializeField] private Transform station;
+    [Tooltip("Engine smoke; puffs faster while the train drives.")]
+    [SerializeField] private SmokePuffs smoke;
+    [Tooltip("Parks the train at the station when the bell shows the town.")]
+    [SerializeField] private OnboardingManager onboarding;
 
     [Tooltip("Called when the countdown reaches zero.")]
     public UnityEvent onFinished;
@@ -59,6 +66,20 @@ public class TownTaskTimer : MonoBehaviour
     {
         var rig = FindFirstObjectByType<OVRCameraRig>();
         head = rig != null ? rig.centerEyeAnchor : Camera.main.transform;
+        if (onboarding == null)
+            onboarding = FindFirstObjectByType<OnboardingManager>();
+    }
+
+    private void OnEnable()
+    {
+        if (onboarding != null)
+            onboarding.Confirmed += ParkAtStation;
+    }
+
+    private void OnDisable()
+    {
+        if (onboarding != null)
+            onboarding.Confirmed -= ParkAtStation;
     }
 
     /// <summary>Shows the timer on the clock tower and starts the countdown and the train's lap.</summary>
@@ -78,6 +99,8 @@ public class TownTaskTimer : MonoBehaviour
         StartCoroutine(PopIn(display.transform));
 
         PrepareTrain();
+        if (smoke != null)
+            smoke.Moving = true;
         Debug.Log($"[TownTimer] Countdown started: {seconds:F0} s");
     }
 
@@ -108,6 +131,8 @@ public class TownTaskTimer : MonoBehaviour
         IsRunning = false;
         SetDigits(0, true);
         PlaceTrain(1f);
+        if (smoke != null)
+            smoke.Moving = false;
         if (display != null)
             StartCoroutine(Pulse(display.transform));
         Debug.Log("[TownTimer] Countdown finished");
@@ -121,15 +146,16 @@ public class TownTaskTimer : MonoBehaviour
         if (train == null || track == null)
             return;
 
-        // The lap always starts from the train's original spot (also after an earlier lap).
-        if (!trainStored)
+        // The lap starts at the station (also after an earlier lap).
+        if (trainStored)
         {
-            trainStored = true;
-            trainStartPosition = train.localPosition;
-            trainStartRotation = train.localRotation;
+            train.localPosition = trainStartPosition;
+            train.localRotation = trainStartRotation;
         }
-        train.localPosition = trainStartPosition;
-        train.localRotation = trainStartRotation;
+        ParkAtStation();
+        trainStored = true;
+        trainStartPosition = train.localPosition;
+        trainStartRotation = train.localRotation;
 
         lapCenter = track.bounds.center;
         lapAxis = track.transform.up;
@@ -138,19 +164,52 @@ public class TownTaskTimer : MonoBehaviour
         lapDirection = 1f;
         if (locomotive != null)
         {
-            Vector3 middle = Vector3.zero;
-            int count = 0;
-            foreach (Transform car in train)
-            {
-                middle += car.position;
-                count++;
-            }
-            middle = count > 0 ? middle / count : train.position;
+            Vector3 middle = TrainMiddle();
             Vector3 radius = locomotive.position - lapCenter;
             // Cross(axis, r) is the direction a point moves under a positive RotateAround.
             Vector3 positiveTurn = Vector3.Cross(lapAxis, radius);
             lapDirection = Vector3.Dot(positiveTurn, locomotive.position - middle) >= 0f ? 1f : -1f;
         }
+    }
+
+    /// <summary>Slides the train along the track so its middle lines up with the station.</summary>
+    [ContextMenu("Park Train At Station")]
+    public void ParkAtStation()
+    {
+        if (train == null || track == null || station == null || IsRunning || !train.gameObject.activeInHierarchy)
+            return;
+
+        Vector3 center = track.bounds.center;
+        Vector3 axis = track.transform.up;
+        Vector3 toTrain = Vector3.ProjectOnPlane(TrainMiddle() - center, axis);
+        Vector3 toStation = Vector3.ProjectOnPlane(StationPoint() - center, axis);
+        if (toTrain.sqrMagnitude < 1e-6f || toStation.sqrMagnitude < 1e-6f)
+            return;
+
+        train.RotateAround(center, axis, Vector3.SignedAngle(toTrain, toStation, axis));
+    }
+
+    private Vector3 TrainMiddle()
+    {
+        Vector3 middle = Vector3.zero;
+        int count = 0;
+        foreach (Transform car in train)
+        {
+            middle += car.position;
+            count++;
+        }
+        return count > 0 ? middle / count : train.position;
+    }
+
+    private Vector3 StationPoint()
+    {
+        var renderers = station.GetComponentsInChildren<Renderer>();
+        if (renderers.Length == 0)
+            return station.position;
+        Bounds b = renderers[0].bounds;
+        foreach (var r in renderers)
+            b.Encapsulate(r.bounds);
+        return b.center;
     }
 
     private void PlaceTrain(float lap)
