@@ -133,6 +133,28 @@ public class TownTaskTimer : MonoBehaviour
         PlaceTrain(LapProgress(elapsed));
     }
 
+    /// <summary>Ends the countdown early (no onFinished): the display hides, the train parks back at the station and
+    /// the construction stops where it is.</summary>
+    public void Cancel()
+    {
+        if (!IsRunning)
+            return;
+        IsRunning = false;
+        IsPaused = false;
+        if (smoke != null)
+            smoke.Moving = false;
+        if (construction != null)
+            construction.Pause();
+        if (display != null)
+            display.gameObject.SetActive(false);
+        if (trainStored && train != null)
+        {
+            train.localPosition = trainStartPosition;
+            train.localRotation = trainStartRotation;
+        }
+        Debug.Log("[TownTimer] Countdown cancelled");
+    }
+
     /// <summary>Holds the countdown: the timer, the train and the construction all stop.</summary>
     public void Pause()
     {

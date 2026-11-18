@@ -30,6 +30,8 @@ public class FocusSession : MonoBehaviour
     [SerializeField] private GameObject constructionSign;
     [SerializeField] private GameObject trainStationSign;
     [SerializeField] private GameObject buildingCompletedSign;
+    [Tooltip("Shown over the finished building after 'Building completed', pointing the user to the menu.")]
+    [SerializeField] private GameObject pointTowardsMenuSign;
     [Tooltip("Turn the signs to face the user (yaw only).")]
     [SerializeField] private bool signsFaceUser = true;
 
@@ -80,6 +82,8 @@ public class FocusSession : MonoBehaviour
             yesButton.onClick.AddListener(FinishedYes);
         if (noButton != null)
             noButton.interactable = false; // not supported yet: the task has to be finished
+        if (pointTowardsMenuSign != null)
+            pointTowardsMenuSign.SetActive(false); // only after the building is completed
         if (townCanvas != null)
             townCanvas.SetActive(false);
     }
@@ -203,9 +207,33 @@ public class FocusSession : MonoBehaviour
     {
         yield return new WaitForSeconds(seconds);
         ShowSigns(false, false, false);
-        if (townCanvas != null)
+        // Point the user at the menu (on the finished building) until they open it.
+        if (pointTowardsMenuSign != null)
+            SetSign(pointTowardsMenuSign, true);
+        else if (townCanvas != null)
             townCanvas.SetActive(false);
         routine = null;
+    }
+
+    /// <summary>Hides the "point towards menu" sign (e.g. once the menu has been opened).</summary>
+    public void HideMenuPointer()
+    {
+        if (pointTowardsMenuSign != null)
+            SetSign(pointTowardsMenuSign, false);
+    }
+
+    /// <summary>Ends the running session early: timer, break and panels stop; the town signs go away.</summary>
+    public void EndSession()
+    {
+        if (!IsActive)
+            return;
+        IsActive = false;
+        IsOnBreak = false;
+        Stop();
+        timer.Cancel();
+        flow.HideAll();
+        ShowSigns(false, false, false);
+        Debug.Log("[FocusSession] Session ended by the user");
     }
 
     private void ShowSigns(bool construction, bool station, bool completed)
