@@ -37,6 +37,10 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Part of the big town whose edge is matched to the ring (e.g. Plaza_OuterCurb, so the user stands in the plaza). " +
              "If empty, the whole town's edge is matched to the ring.")]
     [SerializeField] private Transform bigTownFitTo;
+    [Tooltip("Optional part of the big town (e.g. ClockTower) turned to a fixed direction from the user when it's shown.")]
+    [SerializeField] private Transform bigTownFaceTarget;
+    [Tooltip("Where the face target ends up, in degrees from the user's forward (positive = to the right).")]
+    [SerializeField] private float bigTownFaceTargetYaw = 45f;
     [Tooltip("Hide the mini town and the ring once the big town is shown.")]
     [SerializeField] private bool hideMiniTownOnConfirm = true;
     [Tooltip("Sky sphere around the town (e.g. Env_Sphere). Drawn double-sided so it's visible from inside.")]
@@ -56,6 +60,9 @@ public class OnboardingManager : MonoBehaviour
     [Tooltip("Height above the ring (where the town's ground is placed) of the floor punch disc. " +
              "Keep it just above the town's ground so the cut ends at the ring.")]
     [SerializeField] private float passthroughHoleHeight = 0.05f;
+    [Tooltip("Also punch through the sky above the ring, showing the real ceiling. Off: only the floor shows the real " +
+             "room and the virtual sky stays overhead.")]
+    [SerializeField] private bool passthroughCeiling = false;
     [Tooltip("Height above the floor of the ceiling punch disc; the sky above it, inside the ring, shows the real room.")]
     [SerializeField] private float passthroughCeilingHeight = 2.5f;
     [Tooltip("Width of the soft edge between the real room and the town, in meters (centered on the ring).")]
@@ -69,6 +76,15 @@ public class OnboardingManager : MonoBehaviour
     /// <summary>True once the bell has confirmed the size (the big town and/or dome is shown).</summary>
     public bool IsConfirmed { get; private set; }
 
+    /// <summary>Raised once the bell has confirmed the size and the big town is shown.</summary>
+    public event System.Action Confirmed;
+
+    /// <summary>Raised after the mini town (and ring) is placed in front of the user, including on respawn.</summary>
+    public event System.Action Spawned;
+
+    /// <summary>The mini town being sized (null until spawned).</summary>
+    public Transform MiniTown => town;
+
     private static readonly int PassthroughHoleCenterId = Shader.PropertyToID("_PassthroughHoleCenter");
     private static readonly int PassthroughHoleRadiusId = Shader.PropertyToID("_PassthroughHoleRadius");
     private static readonly int HoleFeatherId = Shader.PropertyToID("_HoleFeather");
@@ -78,6 +94,7 @@ public class OnboardingManager : MonoBehaviour
     private Transform head;
     private OVRCameraRig rig;
     private Vector3 bigTownStartScale;
+    private Quaternion bigTownStartRotation;
     // Dome model measurements per unit of localScale, taken when it's first shown.
     private float domeRadiusPerScale;
     private Vector3 domeCenterOffsetPerScale;
@@ -101,6 +118,7 @@ public class OnboardingManager : MonoBehaviour
         if (bigTown != null)
         {
             bigTownStartScale = bigTown.localScale;
+            bigTownStartRotation = bigTown.rotation;
             bigTown.gameObject.SetActive(false);
         }
 
@@ -196,6 +214,8 @@ public class OnboardingManager : MonoBehaviour
                 town.gameObject.SetActive(false);
             ringLine.enabled = false;
         }
+
+        Confirmed?.Invoke();
     }
 
     private void ShowBigTown()
@@ -204,6 +224,7 @@ public class OnboardingManager : MonoBehaviour
             return;
 
         bigTown.localScale = bigTownStartScale;
+        bigTown.rotation = bigTownStartRotation;
         bigTown.gameObject.SetActive(true);
 
         // The town's own preview camera would render over the headset view.
@@ -235,6 +256,19 @@ public class OnboardingManager : MonoBehaviour
         // Center of the fit target goes to the ring center (the user); the town's ground (its pivot) goes at the ring's height.
         Vector3 center = ringLine.transform.position;
         bigTown.position = new Vector3(center.x - centerOffset.x * k, center.y, center.z - centerOffset.z * k);
+
+        // Spin the town about the user (the ring center) so the face target lands at a fixed angle from where
+        // they're looking, e.g. the clock tower 45 degrees to the right.
+        if (bigTownFaceTarget != null)
+        {
+            Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+            Vector3 toTarget = Vector3.ProjectOnPlane(bigTownFaceTarget.position - center, Vector3.up);
+            if (forward.sqrMagnitude > 0.0001f && toTarget.sqrMagnitude > 0.0001f)
+            {
+                Vector3 desired = Quaternion.Euler(0f, bigTownFaceTargetYaw, 0f) * forward;
+                bigTown.RotateAround(center, Vector3.up, Vector3.SignedAngle(toTarget, desired, Vector3.up));
+            }
+        }
 
         Debug.Log($"[Onboarding] Big town shown: ring radius {RingRadius:F2} m, town scale x{k:F3}");
     }
@@ -309,11 +343,13 @@ public class OnboardingManager : MonoBehaviour
         // The ring starts (and stays, until the bell) at the mini town's base height, centered on the user.
         Vector3 ringPos = ringLine.transform.position;
         ringLine.transform.position = new Vector3(ringPos.x, townBasePosition.y, ringPos.z);
+
+        Spawned?.Invoke();
     }
 
-    // Two flat quads with the "Passthrough Hole" shader, one just above the floor and one at ceiling height.
-    // Each clears whatever virtual content is behind it inside the ring, so the ring becomes a floor-to-ceiling
-    // column of real room; the town and sky beyond the ring are untouched.
+    // Flat quads with the "Passthrough Hole" shader: one just above the floor and, optionally, one at ceiling height.
+    // Each clears whatever virtual content is behind it inside the ring, so the real floor shows inside the ring
+    // (and the real ceiling too, if enabled); the town and sky beyond the ring are untouched.
     private void SpawnHoleDiscs()
     {
         if (!passthroughHole)
@@ -325,7 +361,8 @@ public class OnboardingManager : MonoBehaviour
         }
 
         holeDisc = CreateHoleDisc("PassthroughHole_Floor");
-        holeCeiling = CreateHoleDisc("PassthroughHole_Ceiling");
+        if (passthroughCeiling)
+            holeCeiling = CreateHoleDisc("PassthroughHole_Ceiling");
         PlaceHoleDisc();
     }
 
