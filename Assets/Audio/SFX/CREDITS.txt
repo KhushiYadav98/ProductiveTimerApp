@@ -36,3 +36,6 @@ Session/Break_Start.wav        = pleasing-bell.wav    - "Pleasing Bell Sound Eff
                                       https://opengameart.org/content/park-ambiences
 ../Ambience/Babble/Babble_*.wav     = synthesized for this project (animal-style gibberish), no third-party content
 ../Ambience/Train_Clack_Loop.wav    = synthesized for this project (rumble + rail-joint clacks), no third-party content
+
+DayNight/Celestial_Grab.wav   = pluck_002.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
+DayNight/Celestial_Switch.wav = glass_004.wav - "Interface Sounds" by Kenney (www.kenney.nl), CC0
